@@ -55,12 +55,14 @@ app.use((req, res, next) => {
     }
 
     if (origin) {
-      const isLocal =
-        origin.startsWith("http://127.0.0.1:") ||
-        origin.startsWith("http://localhost:") ||
-        origin.startsWith("http://[::1]:");
-      if (!isLocal) {
-        return res.status(403).json({ ok: false, error: "Forbidden: Request origin is not a trusted local host.", code: "UNTRUSTED_ORIGIN" });
+      try {
+        const u = new URL(origin);
+        const isLocal = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(u.hostname);
+        if (!isLocal) {
+          return res.status(403).json({ ok: false, error: "Forbidden: Request origin is not a trusted local host.", code: "UNTRUSTED_ORIGIN" });
+        }
+      } catch {
+        return res.status(403).json({ ok: false, error: "Forbidden: Invalid origin header.", code: "INVALID_ORIGIN" });
       }
     }
   }
@@ -117,10 +119,11 @@ app.use("/api", (req, res) => {
 // Global Express Error Handler
 app.use((err, req, res, next) => {
   logger.error(`Unhandled request error: ${err.message}`);
-  res.status(err.status || 500).json({
+  const status = err.status || 500;
+  res.status(status).json({
     ok: false,
     error: err.message || "Internal Server Error",
-    code: err.code || "INTERNAL_ERROR",
+    code: err.code || (status === 400 ? "BAD_REQUEST" : "INTERNAL_ERROR"),
   });
 });
 

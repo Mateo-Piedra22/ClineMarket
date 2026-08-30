@@ -38,6 +38,30 @@ async function getJson(url) {
   return r.json();
 }
 
+async function postJson(url, body = {}, headers = {}) {
+  const r = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Origin": "http://127.0.0.1:5173",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+  return { status: r.status, ok: r.ok, json: await r.json() };
+}
+
+async function deleteJson(url, headers = {}) {
+  const r = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      "Origin": "http://127.0.0.1:5173",
+      ...headers,
+    },
+  });
+  return { status: r.status, ok: r.ok, json: await r.json() };
+}
+
 async function main() {
   let spawnedServer = null;
 
@@ -160,6 +184,89 @@ async function main() {
     assert.ok(Array.isArray(exportData.installed), "exportData.installed must be an array");
     console.log(`  export records: ${exportData.installed.length}`);
 
+    console.log("\n==> Testing /api/settings & /api/workspaces/recent");
+    const setRes = await postJson(`${BASE}/api/settings`, { defaultScope: "workspace", themeContrast: "high" });
+    assert.strictEqual(setRes.ok, true, "settings update must return ok: true");
+    assert.strictEqual(setRes.json.settings.defaultScope, "workspace");
+
+    const wsBad = await postJson(`${BASE}/api/workspaces/recent`, {});
+    assert.strictEqual(wsBad.status, 400, "empty workspace path must return 400");
+    assert.strictEqual(wsBad.json.code, "INVALID_PATH");
+
+    const wsGood = await postJson(`${BASE}/api/workspaces/recent`, { path: root });
+    assert.strictEqual(wsGood.ok, true);
+    assert.ok(Array.isArray(wsGood.json.recentWorkspaces));
+    console.log("  [✓] settings and recent workspaces endpoints operational");
+
+    console.log("\n==> Testing /api/watchlist (POST, GET, TOGGLE, DELETE)");
+    const wlAdd = await postJson(`${BASE}/api/watchlist`, { type: "plugin", id: "goal" });
+    assert.strictEqual(wlAdd.ok, true);
+    assert.strictEqual(wlAdd.json.starred, true);
+
+    const wlList = await getJson(`${BASE}/api/watchlist`);
+    assert.ok(wlList.items.some((x) => x.key === "plugin:goal"));
+
+    const wlToggle = await postJson(`${BASE}/api/watchlist/toggle`, { type: "plugin", id: "goal" });
+    assert.strictEqual(wlToggle.ok, true);
+    assert.strictEqual(wlToggle.json.starred, false);
+
+    await postJson(`${BASE}/api/watchlist`, { type: "skill", id: "code-review" });
+    const wlDel = await deleteJson(`${BASE}/api/watchlist/skill/code-review`);
+    assert.strictEqual(wlDel.ok, true);
+    console.log("  [✓] watchlist CRUD and toggle flow verified");
+
+    console.log("\n==> Testing /api/mark and /api/forget");
+    const markRes = await postJson(`${BASE}/api/mark`, { type: "plugin", id: "custom-smoke-p" });
+    assert.strictEqual(markRes.ok, true);
+    assert.strictEqual(markRes.json.item.id, "custom-smoke-p");
+
+    const forgetRes = await deleteJson(`${BASE}/api/forget/plugin/custom-smoke-p`);
+    assert.strictEqual(forgetRes.ok, true);
+    console.log("  [✓] mark and forget lifecycle verified");
+
+    console.log("\n==> Testing /api/bulk and /api/import validation");
+    const bulkWatch = await postJson(`${BASE}/api/bulk`, {
+      action: "watch",
+      items: [{ type: "plugin", id: "bulk-p1" }, null, { type: "skill", id: "bulk-s1" }],
+    });
+    assert.strictEqual(bulkWatch.ok, true);
+    assert.strictEqual(bulkWatch.json.results.length, 2);
+
+    const badImport = await postJson(`${BASE}/api/import`, { installed: "not-an-array" });
+    assert.strictEqual(badImport.status, 400);
+
+    const goodImport = await postJson(`${BASE}/api/import`, {
+      installed: [{ type: "plugin", id: "imported-smoke-p", scope: "global" }, null],
+    });
+    assert.strictEqual(goodImport.ok, true);
+    assert.strictEqual(goodImport.json.added, 1);
+    console.log("  [✓] bulk watch and import validation passed");
+
+    console.log("\n==> Testing Security & CSRF Middleware");
+    const csrfBadOrigin = await fetch(`${BASE}/api/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Origin": "https://malicious-site.com" },
+      body: JSON.stringify({ defaultScope: "workspace" }),
+    });
+    assert.strictEqual(csrfBadOrigin.status, 403);
+    const csrfBadJson = await csrfBadOrigin.json();
+    assert.strictEqual(csrfBadJson.code, "UNTRUSTED_ORIGIN");
+
+    const csrfCrossSite = await fetch(`${BASE}/api/settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Sec-Fetch-Site": "cross-site" },
+      body: JSON.stringify({ defaultScope: "workspace" }),
+    });
+    assert.strictEqual(csrfCrossSite.status, 403);
+    const csrfCrossJson = await csrfCrossSite.json();
+    assert.strictEqual(csrfCrossJson.code, "CSRF_BLOCKED");
+
+    const versionRes = await fetch(`${BASE}/api/version`);
+    assert.strictEqual(versionRes.headers.get("x-content-type-options"), "nosniff");
+    assert.strictEqual(versionRes.headers.get("x-frame-options"), "SAMEORIGIN");
+    assert.ok(versionRes.headers.get("content-security-policy").includes("default-src 'self'"));
+    console.log("  [✓] CSRF blocking and security headers strictly enforced");
+
     console.log("\n==> Testing 404 JSON Middleware (/api/nonexistent-route-xyz-404)");
     const notFoundRes = await fetch(`${BASE}/api/nonexistent-route-xyz-404`);
     assert.strictEqual(notFoundRes.status, 404, "404 route must return HTTP 404 status");
@@ -172,7 +279,7 @@ async function main() {
     assert.ok(notFoundJson.error.length > 0, "404 error string must not be empty");
     console.log(`  [✓] status: ${notFoundRes.status}, code: ${notFoundJson.code}, error: "${notFoundJson.error}"`);
 
-    console.log("\n==> ALL SMOKE TESTS PASSED WITH STRICT ASSERTIONS!\n");
+    console.log("\n==> ALL SMOKE & SECURITY TESTS PASSED WITH STRICT ASSERTIONS!\n");
   } finally {
     if (spawnedServer) {
       try {

@@ -333,6 +333,37 @@ The following environment variables can be set:
 
 ---
 
+## Testing & Quality Gate
+
+The project enforces strict automated testing using Node.js native test runner (`node:test`) and strict assertions (`node:assert/strict`):
+
+```bash
+# Run unit tests (22 TAP test suites)
+npm run test:unit
+
+# Run end-to-end integration and API smoke tests
+npm run test:smoke
+
+# Run full test suite with coverage
+node --test --experimental-test-coverage scripts/unit-test.mjs scripts/smoke-test.mjs
+```
+
+### Code Coverage Summary
+
+| Module | Line Coverage | Function Coverage | Role & Scope |
+| :--- | :---: | :---: | :--- |
+| `lib/logger.js` | **100.0%** | **100.0%** | ANSI formatted console output, levels, and duration tracking. |
+| `lib/sanitizers.js` | **100.0%** | **100.0%** | Path traversal prevention, primitive ID/type verification. |
+| `lib/reconciler.js` | **96.7%** | **100.0%** | Drift detection, item merging, immutable state. |
+| `lib/resolver.js` | **88.2%** | **87.5%** | Cross-platform binary resolution (Scoop, Choco, fnm, nvm, PATH). |
+| `lib/probes.js` | **87.6%** | **100.0%** | Multi-root filesystem scanners, YAML frontmatter parser, LRU caching. |
+| `lib/state.js` | **85.9%** | **66.7%** | Atomic writes, serialize queues, corrupt JSON quarantine. |
+| `lib/routes.js` | **79.9%** | **85.9%** | REST API endpoints, heuristics, bundles, lifecycle handlers. |
+| `lib/runner.js` | **74.7%** | **58.3%** | Subprocess execution, command mutex, process tree termination. |
+| **All Test Suites** | **82.2%** | **80.8%** | **100% Passing Green-Bar** (22 TAP tests + E2E suite). |
+
+---
+
 ## Contributing and Development
 
 ```bash

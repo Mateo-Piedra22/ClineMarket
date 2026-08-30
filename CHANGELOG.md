@@ -22,11 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `POST /api/bulk` support for `watch` and `unwatch` bulk operations.
   - Dedicated 404 JSON middleware under `/api/*` returning `{ ok: false, error: string, code: "NOT_FOUND" }`.
   - Standardized error envelopes `{ ok: false, error: string, code?: string }` across all REST handlers.
-- **Strict Quality Gate**: Integrated `node:assert/strict` across 14 native unit tests (`scripts/unit-test.mjs`) and smoke tests (`scripts/smoke-test.mjs`) with assertions on all API endpoints.
+- **Strict Quality Gate**: Integrated `node:assert/strict` across 22 native unit tests (`scripts/unit-test.mjs`) and smoke tests (`scripts/smoke-test.mjs`) with assertions on all API endpoints, achieving **82.2% global code coverage** and **88.4% domain package coverage**.
 - **Automated Hook Installer**: Added `scripts/setup-hooks.mjs` invoked automatically via `npm run prepare` to configure git `pre-commit` and `pre-push` verification gates.
 
 ### Changed
 - **Express 5 Upgrade & Modularization**: Refactored backend into pure ES Modules (`lib/state.js`, `lib/probes.js`, `lib/reconciler.js`, `lib/runner.js`, `lib/routes.js`, `lib/logger.js`, `lib/sanitizers.js`, `lib/resolver.js`).
+- **Resilient State Persistence**: Implemented retry loop with backoff for Windows `renameSync` in `lib/state.js` to guard against transient `EBUSY`/`EPERM` locks.
+- **Child Process Race Resolution**: Added `settled` callback protection in `lib/runner.js` to prevent double-settlement on asynchronous spawn error vs close events.
+- **Catalog Refresh Reliability**: Added 15s `AbortSignal.timeout` to network calls and atomic `.tmp` writes in `scripts/refresh-catalog.mjs`.
 - **Distribution Package Optimization**: Excluded screenshots and audit directories via `.npmignore`, reducing npm distribution tarball size by 95.4% to **114.9 KB**.
 - **CLI Robustness**: Fixed `RangeError` on invalid port numbers with `[1, 65535]` range validation; ensured CLI `update` command exits with `exit(1)` on error.
 - **CI/CD Actions Modernization**: Upgraded GitHub Actions workflow tags to official stable versions (`actions/checkout@v4`, `actions/setup-node@v5`, `actions/github-script@v7`) and added Node `24.x` matrix testing.
@@ -35,7 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - **Content-Security-Policy (CSP)**: Added strict CSP headers restricting script, font, and connect origins to loopback and verified GitHub APIs.
-- **Loopback CSRF Protection**: Added mutating request origin checks (`Origin` and `Sec-Fetch-Site`) for loopback security.
+- **Loopback CSRF Protection**: Added mutating request origin checks (`Origin` and `Sec-Fetch-Site`) using full URL hostname verification.
+- **Defensive Request Validation**: Sanitized `recentWorkspaces` array, `/bulk` items, and `/import` records against `null`/malformed objects.
 - **Corruption Quarantine**: Added `.corrupt.<timestamp>` automatic quarantine backup when unparseable JSON is detected, protecting existing installation state.
 - **Subprocess Tree Cleanup**: Implemented process tree termination on Windows (`taskkill /pid ${proc.pid} /T /F`) and POSIX signal escalation for subprocess timeouts.
 

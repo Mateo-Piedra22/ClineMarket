@@ -11,7 +11,7 @@
 //   data/catalog-prev.json  previous catalog, used for the "new" badge
 //   data/upstream-meta.json { id, type, updatedAt, committedAt, sha } per entry
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -54,7 +54,10 @@ function log(...a) {
 }
 
 async function fetchJson(url) {
-  const res = await fetch(url, { headers: { "user-agent": "cline-marketplace-local" } });
+  const res = await fetch(url, {
+    headers: { "user-agent": "cline-marketplace-local" },
+    signal: AbortSignal.timeout(15000),
+  });
   if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
   return res.json();
 }
@@ -63,7 +66,7 @@ async function listEntriesByType(type) {
   // GitHub contents API: list directories under registry/<type>s/
   const url = `https://api.github.com/repos/${REPO}/contents/registry/${type}s`;
   const items = await fetchJson(url);
-  return items.filter((it) => it.type === "dir").map((it) => it.name);
+  return Array.isArray(items) ? items.filter((it) => it && it.type === "dir").map((it) => it.name) : [];
 }
 
 // Resolve "last touched entry.json per slug" by walking the recent commits
@@ -87,7 +90,10 @@ async function fetchJsonWithHeaders(url) {
   if (githubToken) {
     headers["authorization"] = `Bearer ${githubToken}`;
   }
-  const res = await fetch(url, { headers });
+  const res = await fetch(url, {
+    headers,
+    signal: AbortSignal.timeout(15000),
+  });
   if (!res.ok) throw new Error(`GET ${url} -> ${res.status}`);
   return res.json();
 }
@@ -272,8 +278,9 @@ async function main() {
 
   log("downloading catalog:", CATALOG_URL);
   const catalog = await fetchJson(CATALOG_URL);
+  const totalCount = catalog.counts?.total ?? (Array.isArray(catalog.entries) ? catalog.entries.length : 0);
   log(
-    `catalog: ${catalog.counts?.total ?? catalog.entries.length} entries ` +
+    `catalog: ${totalCount} entries ` +
       `(plugins ${catalog.counts?.plugins ?? 0}, skills ${catalog.counts?.skills ?? 0}, ` +
       `mcps ${catalog.counts?.mcps ?? 0})`
   );
@@ -282,12 +289,20 @@ async function main() {
   const cur = join(root, "catalog.json");
   const prev = join(dataDir, "catalog-prev.json");
   if (existsSync(cur)) {
-    const prevCatalog = JSON.parse(readFileSync(cur, "utf8"));
-    writeFileSync(prev, JSON.stringify(prevCatalog, null, 2));
-    log("rotated previous catalog -> catalog-prev.json");
+    try {
+      const prevCatalog = JSON.parse(readFileSync(cur, "utf8"));
+      const prevTmp = `${prev}.${Date.now()}.tmp`;
+      writeFileSync(prevTmp, JSON.stringify(prevCatalog, null, 2));
+      renameSync(prevTmp, prev);
+      log("rotated previous catalog -> catalog-prev.json");
+    } catch (rotErr) {
+      log("warning: failed rotating previous catalog:", rotErr.message);
+    }
   }
 
-  writeFileSync(cur, JSON.stringify(catalog, null, 2));
+  const curTmp = `${cur}.${Date.now()}.tmp`;
+  writeFileSync(curTmp, JSON.stringify(catalog, null, 2));
+  renameSync(curTmp, cur);
   log("wrote catalog.json");
 
   if (catalogOnly) {
@@ -297,7 +312,10 @@ async function main() {
 
   log("fetching per-entry last-commit metadata from GitHub...");
   const meta = await fetchMeta(catalog);
-  writeFileSync(join(dataDir, "upstream-meta.json"), JSON.stringify(meta, null, 2));
+  const metaFile = join(dataDir, "upstream-meta.json");
+  const metaTmp = `${metaFile}.${Date.now()}.tmp`;
+  writeFileSync(metaTmp, JSON.stringify(meta, null, 2));
+  renameSync(metaTmp, metaFile);
   log(`wrote upstream-meta.json (${Object.keys(meta).length} entries)`);
 }
 
