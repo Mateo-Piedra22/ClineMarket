@@ -21,6 +21,7 @@ A developer-grade, offline-first local web application and CLI to browse, instal
 ## Table of Contents
 
 - [Overview](#overview)
+- [Visual Interface and Screenshots](#visual-interface-and-screenshots)
 - [System Architecture](#system-architecture)
 - [Core Features](#core-features)
 - [Quick Start](#quick-start)
@@ -45,6 +46,34 @@ The official [Cline Marketplace](https://cline.github.io/marketplace) provides a
 2. **Filesystem Discovery**: Scans local directories (`~/.cline/plugins/`, `~/.cline/skills/`) and VS Code configuration files (`cline_mcp_settings.json`, Claude Desktop configurations) to detect installed primitives.
 3. **Automated CLI Bridge**: Dispatches `cline plugin install`, `cline skill install`, and `cline mcp install` directly from interactive cards, with automatic `--force` retry handling when upgrading existing installations.
 4. **Offline First**: All search indexing, tag filtering, installed reconciliations, and watchlist management execute locally on your machine with zero external network dependencies beyond catalog refreshes.
+
+---
+
+## Visual Interface and Screenshots
+
+### Catalog Browser View
+
+Full catalog interface showing 200+ primitives, multi-token search, type chips, state flags, and real-time status strip.
+
+<img width="1600" alt="Catalog Browser View" src="docs/screenshot-catalog.png" />
+
+### Recommended Workspace Toolchains
+
+Auto-detects project tech stack, Git remotes, and dependency trees to rank primitives and curated toolchain bundles.
+
+<img width="1600" alt="Recommended Toolchains View" src="docs/screenshot-recommended.png" />
+
+### Primitive Detail and Execution Modal
+
+Deep view of any primitive showing official install commands, environment variable schemas, and action triggers.
+
+<img width="1600" alt="Detail Modal View" src="docs/screenshot-detail.png" />
+
+### System Statistics and Diagnostics
+
+Breakdown by primitive type, author metrics, commit freshness distribution, and local installation coverage.
+
+<img width="1600" alt="Stats and Diagnostics View" src="docs/screenshot-stats.png" />
 
 ---
 

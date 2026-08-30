@@ -156,7 +156,7 @@ function handleModalTabTrap(e, modalEl) {
 
 // ---- Card Rendering -------------------------------------------------------
 
-function renderCard(entry, { reasons = null, score = null } = {}) {
+function renderCard(entry, { reasons = null, score = null, matchPercent = null } = {}) {
   const installed = isInstalled(entry);
   const drift = isDrift(entry);
   const watched = isWatched(entry);
@@ -182,7 +182,6 @@ function renderCard(entry, { reasons = null, score = null } = {}) {
 
   const updatedAt = entry.updatedAt;
   const installedAt = inst?.installedAt;
-  const matchPercent = opts?.matchPercent;
 
   const reasonHtml = (reasons && reasons.length) || matchPercent
     ? `<div style="padding:4px 0 6px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
