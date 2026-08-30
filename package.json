@@ -1,0 +1,23 @@
+{
+  "name": "cline-marketplace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local browser for the Cline Marketplace. Browse, install, uninstall and verify plugins, skills and MCP servers from one page.",
+  "bin": {
+    "cline-marketplace": "bin/cline-marketplace.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "refresh": "node scripts/refresh-catalog.mjs",
+    "link": "npm link",
+    "unlink": "npm unlink -g cline-marketplace"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

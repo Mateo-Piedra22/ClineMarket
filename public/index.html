@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cline Marketplace — Primitive Registry</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <!-- SVG Icon Sprite Definition (Zero AI Slop / 100% Vector) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <symbol id="icon-search" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/>
+    </symbol>
+    <symbol id="icon-filter" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M.75 3h14.5a.75.75 0 0 1 0 1.5H.75a.75.75 0 0 1 0-1.5ZM3 7.75A.75.75 0 0 1 3.75 7h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 7.75ZM6 12a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5A.75.75 0 0 1 6 12Z"/>
+    </symbol>
+    <symbol id="icon-refresh" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7 7 0 0 1 1.05 8.84a.75.75 0 0 1 .655-.835ZM14.295 7.995a.75.75 0 0 1-.834-.656 5.5 5.5 0 0 0-9.592-2.97l1.204 1.204a.25.25 0 0 1-.177.427H1.25a.25.25 0 0 1-.25-.25V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7 7 0 0 1 14.95 7.16a.75.75 0 0 1-.655.835Z"/>
+    </symbol>
+    <symbol id="icon-scan" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M1.75 1.5a.25.25 0 0 0-.25.25v2.5a.75.75 0 0 1-1.5 0v-2.5C0 .784.784 0 1.75 0h2.5a.75.75 0 0 1 0 1.5h-2.5Zm12.5 0h-2.5a.75.75 0 0 1 0-1.5h2.5C15.216 0 16 .784 16 1.75v2.5a.75.75 0 0 1-1.5 0v-2.5a.25.25 0 0 0-.25-.25ZM1.5 11.75a.75.75 0 0 1 1.5 0v2.5a.25.25 0 0 0 .25.25h2.5a.75.75 0 0 1 0 1.5h-2.5A1.75 1.75 0 0 1 0 14.25v-2.5Zm13 0a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 14.25 16h-2.5a.75.75 0 0 1 0-1.5h2.5a.25.25 0 0 0 .25-.25v-2.5Z"/>
+    </symbol>
+    <symbol id="icon-power" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M8 0a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V.75A.75.75 0 0 1 8 0ZM3.28 2.22a.75.75 0 0 1 1.06 1.06 6.5 6.5 0 1 0 7.32 0 .75.75 0 1 1 1.06-1.06 8 8 0 1 1-9.44 0Z"/>
+    </symbol>
+    <symbol id="icon-bulk" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M2.5 1.75C2.5.784 3.284 0 4.25 0h7.5c.966 0 1.75.784 1.75 1.75v12.5A1.75 1.75 0 0 1 11.75 16h-7.5A1.75 1.75 0 0 1 2.5 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25V1.75a.25.25 0 0 0-.25-.25Z"/>
+      <path fill="currentColor" d="M5.5 4h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3.5h5a.75.75 0 0 1 0 1.5h-5a.75.75 0 0 1 0-1.5Zm0 3.5h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 1 0-1.5Z"/>
+    </symbol>
+    <symbol id="icon-star-filled" viewBox="0 0 16 16">
+      <path fill="currentColor" d="m8 1.75 1.935 3.92 4.328.63-3.131 3.052.739 4.312L8 11.625l-3.872 2.039.739-4.312L1.736 6.3l4.328-.63L8 1.75Z"/>
+    </symbol>
+    <symbol id="icon-star-outline" viewBox="0 0 16 16">
+      <path fill="none" stroke="currentColor" stroke-width="1.4" d="M8 2.25l1.8 3.65 4.03.59-2.92 2.84.69 4.02L8 11.45l-3.6 1.9.69-4.02L2.17 6.49l4.03-.59L8 2.25Z"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/>
+    </symbol>
+    <symbol id="icon-close" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+    </symbol>
+    <symbol id="icon-package" viewBox="0 0 16 16">
+      <path fill="currentColor" d="m8.878.392 5.25 3.045c.54.314.872.89.872 1.514v6.098a1.75 1.75 0 0 1-.872 1.514l-5.25 3.045a1.75 1.75 0 0 1-1.756 0l-5.25-3.045A1.75 1.75 0 0 1 1 11.049V4.951c0-.624.332-1.201.872-1.514L7.122.392a1.75 1.75 0 0 1 1.756 0ZM7.875 1.69l-4.63 2.685L8 7.133l4.755-2.758-4.63-2.685a.248.248 0 0 0-.25 0ZM2.5 5.677v5.372c0 .09.047.171.125.216l4.625 2.683V8.435Zm11 0-4.75 2.758v5.513l4.625-2.683a.248.248 0 0 0 .125-.216Z"/>
+    </symbol>
+    <symbol id="icon-terminal" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15H1.75A1.75 1.75 0 0 1 0 13.25Zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25ZM3.22 5.47a.75.75 0 0 1 1.06 0l2.25 2.25a.75.75 0 0 1 0 1.06l-2.25 2.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L5.19 8 3.22 6.53a.75.75 0 0 1 0-1.06Zm5.53 4.28h3.5a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1 0-1.5Z"/>
+    </symbol>
+    <symbol id="icon-sparkle" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M7.53 1.282a.5.5 0 0 1 .94 0l1.19 3.663a.5.5 0 0 0 .375.375l3.663 1.19a.5.5 0 0 1 0 .94l-3.663 1.19a.5.5 0 0 0-.375.375l-1.19 3.663a.5.5 0 0 1-.94 0l-1.19-3.663a.5.5 0 0 0-.375-.375l-3.663-1.19a.5.5 0 0 1 0-.94l3.663-1.19a.5.5 0 0 0 .375-.375l1.19-3.663Z"/>
+    </symbol>
+    <symbol id="icon-empty-state" viewBox="0 0 24 24">
+      <path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6"/>
+    </symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo-wrap">
+        <img src="/cline-logo.svg" alt="Cline" class="brand-logo-img" />
+      </div>
+      <div>
+        <h1>Cline Marketplace</h1>
+        <p class="muted">Primitive Registry · Plugins · Skills · MCP Servers</p>
+      </div>
+    </div>
+    <div class="status-strip" id="statusStrip">
+      <span class="pill" id="pillTotal"><span class="dot"></span> catalog: …</span>
+      <span class="pill" id="pillInstalled"><span class="dot"></span> installed: …</span>
+      <span class="pill" id="pillLocal"><span class="dot"></span> local: …</span>
+      <span class="pill" id="pillNew"><span class="dot"></span> new: …</span>
+      <span class="pill" id="pillCli"><span class="dot"></span> cline CLI: …</span>
+      <span class="pill" id="pillHealth"><span class="dot"></span> health: …</span>
+    </div>
+    <div class="actions">
+      <button id="btnBulkMode" class="ghost" aria-label="Toggle bulk selection mode" title="Toggle bulk selection mode">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-bulk"></use></svg>
+        <span>Bulk Actions</span>
+      </button>
+      <button id="btnToggleSidebar" class="btn-mobile-filters ghost" aria-label="Toggle filter sidebar">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>
+        <span>Filters</span>
+      </button>
+      <button id="btnHelp" class="ghost" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts"><kbd>?</kbd></button>
+      <button id="btnRefresh" class="primary">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        <span>Refresh Catalog</span>
+      </button>
+      <button id="btnRescan">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-scan"></use></svg>
+        <span>Rescan</span>
+      </button>
+      <button id="btnShutdown" class="danger" title="Stop and shutdown local server" aria-label="Stop Server">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-power"></use></svg>
+        <span>Stop Server</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Marketplace Navigation">
+    <button class="tab active" role="tab" aria-selected="true" data-tab="catalog">Catalog</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="recommended">Recommended <span class="tab-badge" id="recBadge" hidden>0</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="watchlist">Watchlist <span class="tab-badge" id="watchBadge" hidden>0</span></button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="stats">Stats</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="changelog">Changelog</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="health">Health</button>
+  </nav>
+
+  <!-- Floating Bulk Action Toolbar -->
+  <aside id="bulkBar" class="bulk-bar hidden" aria-label="Bulk actions toolbar">
+    <div class="bulk-bar-inner">
+      <div class="bulk-count-group">
+        <label class="bulk-check-all-label">
+          <input type="checkbox" id="bulkSelectAll" /> Select all visible
+        </label>
+        <span class="bulk-count-badge" id="bulkCountBadge">0 selected</span>
+      </div>
+      <div class="bulk-buttons">
+        <button id="btnBulkInstall" class="primary small">Install Selected</button>
+        <button id="btnBulkUninstall" class="danger small">Uninstall Selected</button>
+        <button id="btnBulkWatch" class="ghost small">Add to Watchlist</button>
+        <button id="btnBulkClear" class="ghost small">Clear</button>
+      </div>
+    </div>
+  </aside>
+
+  <main id="mainContainer">
+    <aside class="sidebar" id="sidebar" aria-label="Filters and options">
+      <section>
+        <h3>Search</h3>
+        <div class="search-wrap">
+          <svg class="search-icon ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+          <input type="search" id="search" placeholder="Search primitives, authors, tags…" aria-label="Search catalog" autocomplete="off" />
+          <button type="button" id="searchClear" class="search-clear hidden" aria-label="Clear search input">
+            <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h3>Type</h3>
+        <div class="chips" id="typeFilter" role="group" aria-label="Filter by type">
+          <button data-type="all" class="chip active">All <span class="count" id="cntAll">0</span></button>
+          <button data-type="plugin" class="chip">Plugins <span class="count" id="cntPlugin">0</span></button>
+          <button data-type="skill" class="chip">Skills <span class="count" id="cntSkill">0</span></button>
+          <button data-type="mcp" class="chip">MCPs <span class="count" id="cntMcp">0</span></button>
+        </div>
+      </section>
+
+      <section>
+        <h3>State & Flags</h3>
+        <label class="check"><input type="checkbox" id="onlyInstalled" /> Installed only</label>
+        <label class="check"><input type="checkbox" id="onlyLocal" /> Local / Custom only</label>
+        <label class="check"><input type="checkbox" id="onlyVerified" /> Verified only</label>
+        <label class="check"><input type="checkbox" id="onlyFeatured" /> Featured only</label>
+        <label class="check"><input type="checkbox" id="onlyNew" /> New since refresh</label>
+        <label class="check"><input type="checkbox" id="onlyWatchlist" /> Watchlist only</label>
+        <label class="check"><input type="checkbox" id="hideDrift" /> Hide drift</label>
+      </section>
+
+      <section>
+        <h3>Tags <button id="btnClearTags" class="ghost small hidden" style="font-size:10px;padding:1px 6px">clear</button></h3>
+        <div class="chips small" id="tagFilter" role="group" aria-label="Filter by tags"></div>
+      </section>
+
+      <section>
+        <h3>Sort By</h3>
+        <select id="sortBy" aria-label="Sort catalog entries">
+          <option value="updated">Recently updated</option>
+          <option value="name">Name (A–Z)</option>
+          <option value="name-desc">Name (Z–A)</option>
+          <option value="author">Author</option>
+          <option value="type">Type</option>
+        </select>
+      </section>
+
+      <section id="contextPanel" class="context-panel">
+        <h3>Project Workspace</h3>
+        <div id="contextSummary"><span class="muted small">detecting stack…</span></div>
+        <input type="text" id="contextCwd" placeholder="override workspace path…" aria-label="Project workspace path" />
+      </section>
+
+      <section class="legend">
+        <h3>Legend</h3>
+        <div class="legend-list">
+          <div class="legend-item"><span class="badge verified">verified</span> Verified primitive</div>
+          <div class="legend-item"><span class="badge featured">featured</span> Featured in registry</div>
+          <div class="legend-item"><span class="badge new">new</span> Added recently</div>
+          <div class="legend-item"><span class="badge installed">installed</span> Detected on disk</div>
+          <div class="legend-item"><span class="badge local">local</span> Custom local source</div>
+          <div class="legend-item"><span class="badge drift">drift</span> Missing from filesystem</div>
+          <div class="legend-item"><span class="badge watchlist">watch</span> Tracked in watchlist</div>
+        </div>
+      </section>
+
+      <section class="footer-tip">
+        <p class="muted small">Press <kbd>/</kbd> to search · <kbd>?</kbd> for keybinds · <kbd>Esc</kbd> closes modals</p>
+        <div class="export-row">
+          <button id="btnExport" class="ghost small">Export installed</button>
+          <label class="import-label ghost small">Import<input type="file" id="fileImport" accept="application/json" hidden /></label>
+        </div>
+      </section>
+    </aside>
+
+    <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
+
+    <section class="content">
+      <!-- Active filters bar -->
+      <div id="activeFiltersBar" class="active-filters-bar hidden">
+        <span class="label">Active Filters:</span>
+        <div id="activeFiltersList" class="chips small"></div>
+        <button id="btnClearAllFilters" class="ghost small" style="margin-left:auto;">Clear all</button>
+      </div>
+
+      <!-- Catalog tab -->
+      <div id="tab-catalog" class="tab-pane active" role="tabpanel">
+        <div id="results" class="grid"></div>
+        <div id="emptyState" class="empty hidden">
+          <div class="empty-icon-wrap">
+            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-empty-state"></use></svg>
+          </div>
+          <h2>No matching primitives</h2>
+          <p class="muted">Adjust or clear active filters, or pull upstream updates via refresh.</p>
+          <button id="btnEmptyClearFilters" class="primary">Reset filters</button>
+        </div>
+      </div>
+
+      <!-- Recommended tab -->
+      <div id="tab-recommended" class="tab-pane" role="tabpanel">
+        <div id="recIntro" class="intro"></div>
+        <div id="recBundles" class="rec-bundles-wrap" style="margin-bottom:24px"></div>
+        <div class="section-label" id="recIndividualTitle" style="margin-bottom:12px">Matched Primitives for Your Workspace</div>
+        <div id="recGrid" class="grid"></div>
+        <div id="recEmpty" class="empty hidden">
+          <div class="empty-icon-wrap">
+            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-sparkle"></use></svg>
+          </div>
+          <h2>No workspace recommendations detected</h2>
+          <p class="muted">Specify your project directory in the sidebar or run from within a repository.</p>
+        </div>
+      </div>
+
+      <!-- Watchlist tab -->
+      <div id="tab-watchlist" class="tab-pane" role="tabpanel">
+        <div id="watchIntro" class="intro"></div>
+        <div id="watchGrid" class="grid"></div>
+        <div id="watchEmpty" class="empty hidden">
+          <div class="empty-icon-wrap">
+            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-star-outline"></use></svg>
+          </div>
+          <h2>Your watchlist is empty</h2>
+          <p class="muted">Click the star button on any primitive card to track it here.</p>
+          <button id="btnGoToCatalog" class="primary">Browse Catalog</button>
+        </div>
+      </div>
+
+      <!-- Stats tab -->
+      <div id="tab-stats" class="tab-pane" role="tabpanel">
+        <div class="stats-grid">
+          <section class="stat-card"><h3>By Primitive Type</h3><div id="statByType"></div></section>
+          <section class="stat-card"><h3>Top Authors</h3><ol id="statAuthors"></ol></section>
+          <section class="stat-card"><h3>Commit Freshness</h3><div id="statFreshness"></div></section>
+          <section class="stat-card"><h3>Popular Categories</h3><div id="statTags"></div></section>
+          <section class="stat-card wide"><h3>Installed Coverage</h3><div id="statInstalled"></div></section>
+        </div>
+      </div>
+
+      <!-- Changelog tab -->
+      <div id="tab-changelog" class="tab-pane" role="tabpanel">
+        <div class="changelog-grid">
+          <section class="stat-card"><h3>Added <span class="badge new" id="chlogAddedCount">0</span></h3><div id="chlogAdded"></div></section>
+          <section class="stat-card"><h3>Removed <span class="badge drift" id="chlogRemovedCount">0</span></h3><div id="chlogRemoved"></div></section>
+          <section class="stat-card wide"><h3>Updated <span class="badge featured" id="chlogUpdatedCount">0</span></h3><div id="chlogUpdated"></div></section>
+        </div>
+      </div>
+
+      <!-- Health tab -->
+      <div id="tab-health" class="tab-pane" role="tabpanel">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;max-width:800px">
+          <div>
+            <h2 style="margin:0 0 4px 0;font-size:16px">System & CLI Diagnostics</h2>
+            <p class="muted small" style="margin:0">Health verification of runtime dependencies, CLI binaries, and local storage.</p>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="btnCopySysInfo" class="ghost small">Copy Diagnostics</button>
+            <button id="btnHealthRefresh" class="ghost small">Run Verification</button>
+          </div>
+        </div>
+        <div id="healthList" class="health-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <div class="modal-card">
+      <button class="modal-close" id="detailClose" aria-label="Close detail modal">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+      </button>
+      <div id="detailBody"></div>
+    </div>
+  </div>
+
+  <!-- Help / Keybinds Modal -->
+  <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="modal-card help-card">
+      <button class="modal-close" id="helpClose" aria-label="Close shortcuts modal">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
+      </button>
+      <h2 id="helpTitle">Keyboard Shortcuts</h2>
+      <p class="muted small">Quick navigation and action shortcuts across the marketplace.</p>
+      
+      <table class="kbds">
+        <thead>
+          <tr><th style="text-align:left;color:var(--fg-dim);font-size:11px;padding-bottom:6px">Key</th><th style="text-align:left;color:var(--fg-dim);font-size:11px;padding-bottom:6px">Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><kbd>/</kbd></td><td>Focus search input</td></tr>
+          <tr><td><kbd>b</kbd></td><td>Toggle bulk selection mode</td></tr>
+          <tr><td><kbd>g</kbd></td><td>Navigate to Catalog</td></tr>
+          <tr><td><kbd>r</kbd></td><td>Navigate to Recommended</td></tr>
+          <tr><td><kbd>w</kbd></td><td>Navigate to Watchlist</td></tr>
+          <tr><td><kbd>s</kbd></td><td>Navigate to Stats</td></tr>
+          <tr><td><kbd>c</kbd></td><td>Navigate to Changelog</td></tr>
+          <tr><td><kbd>h</kbd></td><td>Navigate to Health & Diagnostics</td></tr>
+          <tr><td><kbd>?</kbd></td><td>Open keyboard shortcuts reference</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Dismiss active modal or clear search</td></tr>
+        </tbody>
+      </table>
+
+      <h3 style="margin-top:20px;font-size:13px;text-transform:uppercase;color:var(--fg-dim);letter-spacing:.08em">CLI Commands</h3>
+      <p class="muted small">Execute <code>cline-marketplace</code> to start this local web server, or <code>cline-marketplace refresh</code> to update the registry index.</p>
+      
+      <div class="help-foot">
+        <button class="primary" id="helpCloseFooter">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shutdown Confirmation & Feedback Modal -->
+  <div id="shutdownModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="shutdownTitle">
+    <div class="modal-card" style="max-width:440px;text-align:center">
+      <div class="modal-icon-wrap" style="width:48px;height:48px;margin:0 auto 12px auto;display:grid;place-items:center;border-radius:50%;background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--danger)">
+        <svg class="ui-icon" style="width:24px;height:24px" aria-hidden="true"><use href="#icon-power"></use></svg>
+      </div>
+      <h2 id="shutdownTitle" style="margin:0 0 8px 0;font-size:18px">Shut Down Local Server?</h2>
+      <p class="muted small" style="line-height:1.5;margin-bottom:20px">
+        This will terminate the local Node.js process. You can restart it at any time with <code>npm start</code> or <code>cline-marketplace</code>.
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="btnCancelShutdown" class="ghost">Cancel</button>
+        <button id="btnConfirmShutdown" class="danger">Terminate Process</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Stopped Screen Overlay -->
+  <div id="serverStoppedOverlay" class="modal hidden" role="dialog" aria-modal="true" style="backdrop-filter:blur(10px)">
+    <div class="modal-card" style="max-width:460px;text-align:center;padding:36px 24px">
+      <div class="modal-icon-wrap" style="width:56px;height:56px;margin:0 auto 14px auto;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg-dim)">
+        <svg class="ui-icon" style="width:28px;height:28px" aria-hidden="true"><use href="#icon-terminal"></use></svg>
+      </div>
+      <h2 style="margin:0 0 8px 0;font-size:20px">Server Stopped</h2>
+      <p class="muted small" style="line-height:1.6;margin-bottom:20px">
+        The Cline Marketplace local server has been shut down cleanly.<br>You can now safely close this browser tab.
+      </p>
+      <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-family:var(--mono);font-size:12px;color:var(--cline-cyan)">
+        $ cline-marketplace
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

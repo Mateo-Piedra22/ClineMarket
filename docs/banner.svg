@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 280" width="1800" height="280">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#131d33"/>
+    </linearGradient>
+    <linearGradient id="clineGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1876f2"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#131d33"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Surface -->
+  <rect width="1800" height="280" fill="url(#bgGrad)"/>
+
+  <!-- Subtle Cyber Grid -->
+  <g stroke="#1e293b" stroke-width="1" opacity="0.4">
+    <path d="M0 70 H1800"/><path d="M0 140 H1800"/><path d="M0 210 H1800"/>
+    <path d="M150 0 V280"/><path d="M300 0 V280"/><path d="M450 0 V280"/><path d="M600 0 V280"/>
+    <path d="M750 0 V280"/><path d="M900 0 V280"/><path d="M1050 0 V280"/><path d="M1200 0 V280"/>
+    <path d="M1350 0 V280"/><path d="M1500 0 V280"/><path d="M1650 0 V280"/>
+  </g>
+
+  <!-- Glowing Aura behind Logo -->
+  <circle cx="150" cy="140" r="90" fill="#1876f2" opacity="0.25" filter="url(#glow)"/>
+
+  <!-- Official Cline Mascot Frame -->
+  <g transform="translate(80, 70)">
+    <rect width="140" height="140" rx="28" fill="url(#cardGrad)" stroke="#1876f2" stroke-width="2.5"/>
+    <g transform="translate(24, 22) scale(1.0)">
+      <!-- Official Antenna -->
+      <circle cx="45.735" cy="11" r="11" fill="url(#clineGrad)" />
+      <!-- Official Head -->
+      <path d="M65.449 16.3C76.337 16.3 85.164 25.165 85.164 36.1v6.6l5.739 11.465c.567 1.132.564 2.465-.007 3.595L85.164 69.1v6.6c0 10.936-8.827 19.8-19.715 19.8H26.021C15.133 95.5 6.306 86.636 6.306 75.7v-6.6L.449 57.795c-.596-1.149-.598-2.515-.008-3.666L6.306 42.7v-6.6C6.306 25.165 15.133 16.3 26.021 16.3h39.428z" fill="url(#clineGrad)" />
+      <!-- Official Eyes -->
+      <rect fill="#090D16" x="27" y="44.5" width="12" height="22" rx="6" />
+      <rect fill="#090D16" x="53" y="44.5" width="12" height="22" rx="6" />
+    </g>
+  </g>
+
+  <!-- Typography & Badges -->
+  <text x="260" y="125" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="800" fill="#ffffff" letter-spacing="-0.02em">Cline Marketplace</text>
+  <text x="740" y="123" font-family="'JetBrains Mono', monospace" font-size="18" font-weight="700" fill="#38bdf8">LOCAL CONTROL PLANE</text>
+  
+  <text x="260" y="172" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" fill="#94a3b8">Official Primitive Registry · Zero Telemetry · Multi-Layer Reconciler · Instant CLI Integration</text>
+
+  <!-- Stat Pills in Banner -->
+  <g transform="translate(260, 195)">
+    <rect width="130" height="28" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <text x="65" y="19" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="600" fill="#38bdf8">200+ CATALOG</text>
+  </g>
+  <g transform="translate(400, 195)">
+    <rect width="140" height="28" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <text x="70" y="19" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="600" fill="#10b981">PLUGINS &amp; SKILLS</text>
+  </g>
+  <g transform="translate(550, 195)">
+    <rect width="130" height="28" rx="14" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+    <text x="65" y="19" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="12" font-weight="600" fill="#fbbf24">MCP SERVERS</text>
+  </g>
+</svg>
