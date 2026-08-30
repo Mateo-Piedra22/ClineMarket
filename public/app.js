@@ -294,11 +294,11 @@ function renderCard(entry, { reasons = null, score = null, matchPercent = null }
   // Quick Action Buttons
   card.querySelector(".btn-quick-install")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    runInstall(entry);
+    runInstall(entry, false);
   });
   card.querySelector(".btn-quick-reinstall")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    runInstall(entry);
+    runInstall(entry, true);
   });
   card.querySelector(".btn-quick-uninstall")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -970,7 +970,7 @@ function openDetail(entry) {
     </div>`;
 
   $("#btnCopyInline")?.addEventListener("click", () => copyToClipboard(entry.install?.command || "", $("#btnCopyInline")));
-  $("#btnInstall")?.addEventListener("click", () => runInstall(entry));
+  $("#btnInstall")?.addEventListener("click", () => runInstall(entry, installed));
   $("#btnUninstall")?.addEventListener("click", () => runUninstall(entry));
   $("#btnWatch")?.addEventListener("click", () => toggleWatch(entry, !watched));
   $("#btnMarkManual")?.addEventListener("click", () => runMarkManual(entry));
@@ -1022,15 +1022,17 @@ function showInstallOutput(out, isError) {
   host.appendChild(wrap);
 }
 
-async function runInstall(entry) {
+async function runInstall(entry, force = false) {
   const btn = $("#btnInstall");
   if (btn) { btn.disabled = true; btn.textContent = "Installing…"; }
+  const isForce = force || isInstalled(entry);
   try {
     const res = await postJson("/api/install", {
       type: entry.type,
       id: entry.id,
       scope: state.installScope || "global",
       cwd: state.contextCwd || "",
+      force: isForce,
     });
     showInstallOutput(
       `$ ${res.command}\n[exit ${res.exitCode}]\n` +
