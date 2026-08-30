@@ -1025,7 +1025,7 @@ function showInstallOutput(out, isError) {
 async function runInstall(entry, force = false) {
   const btn = $("#btnInstall");
   if (btn) { btn.disabled = true; btn.textContent = "Installing…"; }
-  const isForce = force || isInstalled(entry);
+  const isForce = Boolean(force || isInstalled(entry) || isDrift(entry));
   try {
     const res = await postJson("/api/install", {
       type: entry.type,

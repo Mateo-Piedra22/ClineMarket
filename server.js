@@ -72,9 +72,9 @@ const apiRouter = createApiRouter({
 });
 app.use("/api", apiRouter);
 
-// Fallback index.html for SPA routes
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api/")) return next();
+// Fallback index.html for SPA routes (Express 5 compatible)
+app.use((req, res, next) => {
+  if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
   res.sendFile(join(root, "public", "index.html"));
 });
 
