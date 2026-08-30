@@ -6,8 +6,8 @@
 
 A developer-grade, offline-first local web application and CLI to browse, install, verify, and manage every primitive (**plugins**, **skills**, and **MCP servers**) published in the official [Cline Marketplace](https://github.com/cline/marketplace).
 
-[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518.0.0-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
-[![Express](https://img.shields.io/badge/Express-4.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518.0.0_--_24.x-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Express](https://img.shields.io/badge/Express-5.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
 [![JavaScript](https://img.shields.io/badge/ES_Modules-Vanilla_JS-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![Cline CLI](https://img.shields.io/badge/Cline_CLI-v3.x-1876F2?style=for-the-badge&logo=robot&logoColor=white)](https://docs.cline.bot)
 [![GitHub Actions](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/Mateo-Piedra22/ClineMarket/actions)
@@ -44,7 +44,7 @@ The official [Cline Marketplace](https://cline.github.io/marketplace) provides a
 **Cline Marketplace Local Browser** transforms that catalog into a **bidirectional, local control plane**:
 
 1. **Mirroring and Local Cache**: Ingests and persists the upstream catalog in `catalog.json` alongside upstream commit metadata in `data/upstream-meta.json`.
-2. **Filesystem Discovery**: Scans local directories (`~/.cline/plugins/`, `~/.cline/skills/`) and VS Code configuration files (`cline_mcp_settings.json`, Claude Desktop configurations) to detect installed primitives.
+2. **Filesystem Discovery**: Scans local directories (`~/.cline/plugins/`, `~/.cline/skills/`) and VS Code / Roo-Cline / Claude configuration files (`cline_mcp_settings.json`, Claude Desktop configurations) to detect installed primitives.
 3. **Automated CLI Bridge**: Dispatches `cline plugin install`, `cline skill install`, and `cline mcp install` directly from interactive cards, with automatic `--force` retry handling when upgrading existing installations.
 4. **Offline First**: All search indexing, tag filtering, installed reconciliations, and watchlist management execute locally on your machine with zero external network dependencies beyond catalog refreshes.
 
@@ -94,19 +94,22 @@ flowchart TD
         HealthUI[Diagnostics & Health Panel]
     end
 
-    subgraph ControlPlane ["Express Server (server.js)"]
-        Router[REST API Endpoints /api/*]
-        Guard[Input Validation & Sanitization]
+    subgraph ControlPlane ["Express 5 Server (server.js & lib/*)"]
+        Router[REST API Endpoints /api/* - lib/routes.js]
+        Guard[Input Validation & CSP - lib/sanitizers.js]
         PortMgr[Dynamic Port Allocator]
-        Logger[Structured ANSI Logger]
-        AtomicIO[Atomic JSON File Storage]
+        Resolver[Cross-Platform Binary Resolver - lib/resolver.js]
+        Runner[Subprocess Bridge & Lock - lib/runner.js]
+        Reconciler[Filesystem Reconciler - lib/reconciler.js]
+        State[Atomic JSON Queues & Quarantine - lib/state.js]
+        Logger[Structured Logger - lib/logger.js]
     end
 
     subgraph Environment ["Local Machine & Tooling"]
         ClineBin["Cline CLI (cline / cline.cmd)"]
         GHBin["GitHub CLI (gh auth token)"]
-        StorageRoots["~/.cline/ & ~/.claude/"]
-        VSCodeStorage["VS Code MCP Settings"]
+        StorageRoots["~/.cline/, ~/.claude/, ~/.cursor/"]
+        VSCodeStorage["VS Code / Roo-Cline / Cursor MCP Settings"]
     end
 
     subgraph Storage ["Local Storage (data/)"]
@@ -117,12 +120,12 @@ flowchart TD
     end
 
     UI <-->|HTTP / JSON| Router
-    Router --> Guard --> AtomicIO
-    AtomicIO <--> Storage
-    Router --> ClineBin
-    Router --> GHBin
-    Router --> StorageRoots
-    Router --> VSCodeStorage
+    Router --> Guard --> State
+    State <--> Storage
+    Router --> Runner --> Resolver --> ClineBin
+    Router --> Resolver --> GHBin
+    Router --> Reconciler --> StorageRoots
+    Router --> Reconciler --> VSCodeStorage
 ```
 
 ---
@@ -132,14 +135,14 @@ flowchart TD
 | Area | Functionality |
 | :--- | :--- |
 | **Catalog Browser** | Real-time search across 250+ primitives with multi-token filtering by keyword, author, license, tags, and state flags. |
-| **Bulk Mode** | Multi-select primitives across search results to batch-install, batch-uninstall, or add to your watchlist in a single operation. |
+| **Bulk Mode** | Multi-select primitives across search results to batch-install, batch-uninstall, watch, or unwatch in a single atomic queue. |
 | **Curated Toolchains** | Workspace toolchains (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*) installable with one click. |
 | **Workspace Matcher** | Deep heuristic analysis of `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Git remotes, and project files to score catalog entries. |
-| **Drift Detection** | Surfaces a `drift` badge when a primitive is recorded in local history but physically absent from the filesystem. |
+| **Live Drift Detection** | Filesystem reconciler automatically discovers externally installed primitives and surfaces `drift` flags if an item was removed. |
 | **Dynamic Port Binding** | Automatically detects port conflicts on `5173` and binds to the next available socket (`5174`, `5175`, ...) without crashing. |
-| **Process Management** | Dedicated server shutdown endpoint (`POST /api/shutdown`) allowing clean process termination from the web interface. |
-| **Structured Terminal Logging** | Timestamped console logs with latency measurements, HTTP status indicators, and execution traces. |
-| **Data Portability** | JSON export and import of installed primitive states with schema validation and overwrite protections. |
+| **Process Management** | Dedicated server shutdown endpoint (`POST /api/shutdown`) and Windows process tree kill (`taskkill /pid /T /F`) for timeouts. |
+| **Structured Terminal Logging** | Timestamped console logs with latency measurements, HTTP status indicators, `NO_COLOR` support, and execution traces. |
+| **Data Portability** | JSON export and import of installed primitive states with schema validation, sanitizers, and overwrite protections. |
 
 ---
 
@@ -162,7 +165,7 @@ The runner automatically checks runtime dependencies, fetches the catalog if mis
 git clone https://github.com/Mateo-Piedra22/ClineMarket.git
 cd ClineMarket
 
-# Install dependencies (Express 4.x)
+# Install dependencies (Express 5.x)
 npm install
 
 # Download the latest catalog and commit metadata
@@ -217,9 +220,10 @@ cline-marketplace help
 
 | Workflow | Path | Trigger | Purpose |
 | :--- | :--- | :--- | :--- |
-| **CI & Quality Gate** | `.github/workflows/ci.yml` | Push & PR to `main` | Matrix tests across Node.js 18.x, 20.x, 22.x on Ubuntu, Windows, and macOS. |
+| **CI & Quality Gate** | `.github/workflows/ci.yml` | Push & PR to `main` | Matrix tests across Node.js 18.x, 20.x, 22.x, 24.x on Ubuntu, Windows, and macOS. |
 | **Upstream Sync Cron** | `.github/workflows/sync-catalog.yml` | Every 6 hours / Manual | Automatically downloads upstream `cline/marketplace` catalog, detects new primitives, and commits updates with `[skip ci]`. |
-| **Release Automation** | `.github/workflows/release.yml` | Tag push `v*.*.*` / Manual | Auto-generates GitHub Releases, changelogs, and release assets. |
+| **Release Automation** | `.github/workflows/release.yml` | Tag push `v*.*.*` / Manual | Auto-generates GitHub Releases, changelogs, test gating, and release assets. |
+| **Auto-Changelog** | `.github/workflows/auto-changelog.yml` | Push & PR to `main` | Generates continuous Release Drafter notes categorized by change type. |
 | **CodeQL Security** | `.github/workflows/codeql.yml` | Push, PR & Weekly Cron | Static Application Security Testing (SAST) for JavaScript code vulnerabilities. |
 | **Dependabot** | `.github/dependabot.yml` | Weekly | Monitors and creates PRs for outdated npm packages and GitHub Actions. |
 
@@ -231,51 +235,48 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 
 | Method | Endpoint | Description | Parameters / Payload |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/catalog` | Returns the enriched catalog with local state, commit dates, and local custom entries. | None |
-| `GET` | `/api/installed` | Executes a filesystem probe across `~/.cline` and VS Code configs, returning reconciled state. | None |
-| `GET` | `/api/status` | Returns runtime health, Node version, detected `cline` path, and storage roots. | None |
+| `GET` | `/api/catalog` | Returns the enriched catalog with local state, commit dates, and local custom entries. | `?cwd=/path/to/project` |
+| `GET` | `/api/installed` | Executes a filesystem probe across `~/.cline` and VS Code configs, returning reconciled state. | `?cwd=/path/to/project` |
+| `GET` | `/api/status` | Returns runtime health, Node version, memory usage, uptime, detected `cline` path, and storage roots. | None |
 | `GET` | `/api/version` | Returns current package version and app metadata. | None |
 | `GET` | `/api/context` | Runs stack heuristics against a workspace directory and returns ranked recommendations. | `?cwd=/path/to/project` |
-| `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal"}` |
+| `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal", "scope": "global"}` |
 | `POST` | `/api/uninstall` | Invokes `cline <type> uninstall <id>` and updates local registry records. | `{"type": "plugin", "id": "goal"}` |
-| `POST` | `/api/bulk` | Executes batch installation, uninstallation, or watchlist assignment across up to 30 items. | `{"action": "install", "items": [{"type": "plugin", "id": "goal"}]}` |
+| `POST` | `/api/bulk` | Executes batch `install`, `uninstall`, `watch`, or `unwatch` across up to 30 items. | `{"action": "install", "items": [{"type": "plugin", "id": "goal"}]}` |
 | `GET` | `/api/watchlist` | Lists all starred primitives with timestamps. | None |
 | `POST` | `/api/watchlist` | Adds a primitive to the local watchlist. | `{"type": "skill", "id": "code-review"}` |
+| `POST` | `/api/watchlist/toggle` | Toggles star state of a primitive. | `{"type": "plugin", "id": "goal"}` |
 | `DELETE` | `/api/watchlist/:type/:id` | Removes a primitive from the watchlist. | None |
 | `POST` | `/api/mark` | Manually registers a primitive as installed without invoking the CLI. | `{"type": "plugin", "id": "my-custom-plugin"}` |
 | `DELETE` | `/api/mark/:type/:id` | Removes a primitive from manual records. | None |
+| `DELETE` | `/api/forget/:type/:id` | Forgets an entry from local storage. | None |
 | `GET` | `/api/stats` | Aggregates category counts, top authors, freshness histograms, and coverage metrics. | None |
 | `GET` | `/api/changelog` | Returns diff between current catalog and previous snapshot (`catalog-prev.json`). | None |
-| `GET` | `/api/health` | Executes diagnostic probes (`node`, `cline`, `gh`, `storage`, `catalog`, `metadata`). | None |
+| `GET` | `/api/health` | Executes async diagnostic probes (`node`, `cline`, `gh`, `storage`, `catalog`, `metadata`). | None |
 | `GET` | `/api/export` | Generates a downloadable JSON backup of all installed primitives. | None |
-| `POST` | `/api/import` | Restores installed primitives from a JSON backup with overwrite validation. | `{"installed": [...], "overwrite": false}` |
-| `POST` | `/api/refresh` | Triggers background upstream catalog synchronization in-process. | `{"entriesOnly": false}` |
+| `POST` | `/api/import` | Restores installed primitives from a JSON backup with type/id sanitization. | `{"installed": [...]}` |
+| `POST` | `/api/refresh` | Triggers background upstream catalog synchronization in-process. | None |
+| `POST` | `/api/settings` | Updates client configuration with key whitelisting. | `{"defaultScope": "workspace"}` |
+| `POST` | `/api/workspaces/recent` | Saves workspace to recent MRU list. | `{"path": "/path/to/project"}` |
 | `POST` | `/api/shutdown` | Gracefully terminates the background Node.js process. | None |
 
 ---
 
 ## Workspace Context and Heuristics
 
-When navigating to the **Recommended** tab, `scripts/detect-context.mjs` analyzes the specified workspace directory and extracts stack metadata:
+When navigating to the **Recommended** tab, `lib/routes.js` and `scripts/detect-context.mjs` analyze the specified workspace directory and extract stack metadata:
 
 ```jsonc
 {
   "cwd": "C:/Projects/MyWebApp",
   "repo": { "owner": "Mateo-Piedra22", "name": "ClineMarket" },
   "languages": ["typescript", "javascript", "html", "css"],
-  "frameworks": ["express", "nodejs"],
+  "frameworks": ["express", "react", "nodejs"],
   "tags": ["software", "utilities", "databases"],
-  "hints": ["Git repository detected", "Node.js project detected"]
+  "hints": ["Git repository detected", "Node.js project detected"],
+  "recommended": ["plugin:goal", "plugin:context7", "skill:code-review"]
 }
 ```
-
-Catalog primitives are evaluated against detected metadata using weighted affinity scoring:
-
-$$\text{Affinity Score} = (6 \times \text{TagMatches}) + (8 \times \text{FrameworkMatches}) + (4 \times \text{LanguageMatches}) + \text{Bonuses}$$
-
-- **Git Workflow Match**: $+7$ for Git and GitHub tooling when `.git` is detected.
-- **Essential Multipliers**: $+5$ for core workflow tools (`goal`, `context7`).
-- **Review Bonuses**: $+3$ for verified primitives, $+2$ for featured primitives.
 
 ---
 
@@ -285,17 +286,20 @@ $$\text{Affinity Score} = (6 \times \text{TagMatches}) + (8 \times \text{Framewo
    - Primitive `type` is strictly checked against the set `{"plugin", "skill", "mcp"}`.
    - Primitive `id` is validated against `/^[a-zA-Z0-9@_.-]+$/`, explicitly blocking path traversal sequences (`..`), forward/backward slashes, and control characters.
    - Workspace directories supplied via `?cwd=` are normalized and verified with `statSync.isDirectory()` before invocation.
-2. **Subprocess Isolation**:
-   - Subprocesses are executed with argument vectors (`child_process.spawn(exe, args, { windowsHide: true })`) without shell evaluation, eliminating command injection risks.
-3. **Atomic File Persistence**:
-   - All state modifications (`installed.json`, `watchlist.json`, `context-cache.json`) write to temporary files before executing atomic renames, preventing file corruption or race conditions.
+2. **Subprocess Isolation & Process Tree Cleanup**:
+   - Subprocesses are executed with argument vectors (`child_process.execFile` or `spawn`) with timeout management.
+   - On Windows, timeouts trigger process tree termination (`taskkill /pid ${proc.pid} /T /F`).
+3. **Atomic File Persistence & Corruption Quarantine**:
+   - All state modifications (`installed.json`, `watchlist.json`, `settings.json`) write to temporary files before executing atomic renames.
+   - In case of unparseable JSON, a `.corrupt.<timestamp>` backup is created and destructive overwrites are blocked.
 4. **Network & HTTP Security Headers**:
+   - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com; frame-ancestors 'none';`
    - `X-Content-Type-Options: nosniff`
    - `X-Frame-Options: SAMEORIGIN`
    - `Referrer-Policy: strict-origin-when-cross-origin`
    - `X-XSS-Protection: 1; mode=block`
    - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-   - Server strictly binds to loopback interface `127.0.0.1`.
+   - Server strictly binds to loopback interface `127.0.0.1` and enforces CSRF protection for mutating requests via `Origin` / `Sec-Fetch-Site` verification.
 
 ---
 
@@ -311,6 +315,7 @@ The following environment variables can be set:
 | `MARKETPLACE_CATALOG_URL` | `https://cline.github.io/marketplace/catalog.json` | Upstream registry endpoint. |
 | `MARKETPLACE_REPO` | `cline/marketplace` | GitHub repository used for commit metadata queries. |
 | `GITHUB_TOKEN` / `GH_TOKEN` | *(unset)* | GitHub Personal Access Token for high rate limits (auto-detected via `gh auth token`). |
+| `NO_COLOR` | *(unset)* | Disables ANSI color codes in console output if set. |
 
 ---
 
@@ -329,14 +334,20 @@ The following environment variables can be set:
 ## Contributing and Development
 
 ```bash
-# Run local development server with file watcher
-npm run dev
+# Run unit test suite
+npm run test:unit
 
-# Run automated smoke test suite
+# Run automated smoke test suite with assertions
+npm run test:smoke
+
+# Run full quality gate
 npm test
 
-# Reset local data cache
-rm -rf data/ && npm run refresh
+# Capture fresh 2x documentation screenshots
+npm run docs:screenshots
+
+# Setup local git pre-commit & pre-push hooks
+npm run prepare
 ```
 
 ---

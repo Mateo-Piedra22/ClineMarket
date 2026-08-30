@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-08-30
+
+### Added
+- **Multi-Root Storage Probing**: Expanded filesystem candidate scanners in `lib/probes.js` to discover Roo-Cline (`rooveterinaryinc.roo-cline`), Cursor (`.cursor`), and Claude Desktop installations on Windows, macOS, and Linux.
+- **Dynamic Binary Resolver**: Created `lib/resolver.js` supporting multi-package managers (Scoop, Chocolatey, fnm, nvm, Homebrew, PATH) and cross-platform Chrome/Chromium detection.
+- **Workspace Context & Stack Engine**: Integrated `GET /api/context` providing deep heuristic analysis of workspace dependencies, frameworks, and matched catalog recommendations.
+- **REST Endpoints**:
+  - `POST /api/refresh` for in-process catalog and upstream metadata synchronization.
+  - `DELETE /api/mark/:type/:id` and `DELETE /api/forget/:type/:id` for granular lifecycle management.
+  - `POST /api/watchlist` and `DELETE /api/watchlist/:type/:id` for direct watchlist manipulations.
+  - `POST /api/bulk` support for `watch` and `unwatch` bulk operations.
+- **Strict Quality Gate**: Integrated `node:assert/strict` across unit tests (`scripts/unit-test.mjs`) and smoke tests (`scripts/smoke-test.mjs`) with assertions on all 8 API endpoints.
+- **Automated Hook Installer**: Added `scripts/setup-hooks.mjs` invoked automatically via `npm run prepare` to configure git `pre-commit` and `pre-push` verification gates.
+
+### Changed
+- **Express 5 Upgrade & Modularization**: Refactored backend into pure ES Modules (`lib/state.js`, `lib/probes.js`, `lib/reconciler.js`, `lib/runner.js`, `lib/routes.js`, `lib/logger.js`, `lib/sanitizers.js`, `lib/resolver.js`).
+- **CI/CD Actions Modernization**: Upgraded GitHub Actions workflow tags to official stable versions (`actions/checkout@v4`, `actions/setup-node@v5`, `actions/github-script@v7`) and added Node `24.x` matrix testing.
+- **Asynchronous Execution**: Migrated all remaining `execSync` invocations in routes to promisified `execFile` without blocking the Node.js Event Loop.
+- **Observability**: Updated `lib/logger.js` to respect `NO_COLOR` and non-TTY execution environments; switched server metrics to `process.uptime()` and `process.memoryUsage()`.
+
+### Security
+- **Content-Security-Policy (CSP)**: Added strict CSP headers restricting script, font, and connect origins to loopback and verified GitHub APIs.
+- **Loopback CSRF Protection**: Added mutating request origin checks (`Origin` and `Sec-Fetch-Site`) for loopback security.
+- **Corruption Quarantine**: Added `.corrupt.<timestamp>` automatic quarantine backup when unparseable JSON is detected, protecting existing installation state.
+- **Subprocess Tree Cleanup**: Implemented process tree termination on Windows (`taskkill /pid ${proc.pid} /T /F`) and POSIX signal escalation for subprocess timeouts.
+
+---
+
 ## [1.0.0] - 2026-08-30
 
 ### Added
@@ -18,14 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workspace Stack Heuristics & Curated Toolchains**: Multi-language detection (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Git remotes) and toolchain bundles (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*).
 - **Diagnostics & Probes Tab**: 2-column card grid probing Node runtime, Cline CLI, GitHub CLI, local directories, and catalog freshness.
 - **GitHub Actions Automation**:
-  - `ci.yml`: Multi-OS (Ubuntu, Windows, macOS) and multi-Node (18, 20, 22) matrix test runner.
+  - `ci.yml`: Multi-OS (Ubuntu, Windows, macOS) and multi-Node (18, 20, 22, 24) matrix test runner.
   - `sync-catalog.yml`: Scheduled 6-hour cron sync with upstream `cline/marketplace`.
   - `release.yml`: Automatic GitHub Release and asset generation.
   - `codeql.yml`: Static Application Security Testing (SAST).
   - `dependabot.yml`: Automated dependency monitoring.
 - **Community Governance & Standards**: Complete suite of security policies, contributing guides, code of conduct, issue templates, and PR checklists.
-
-### Security
-- Comprehensive input sanitization blocking path traversal, command injection, and illegal primitive identifiers.
-- Atomic file write mechanisms with temporary files and rename guards.
-- Local loopback interface binding (`127.0.0.1`) and strict HTTP security headers (`nosniff`, `SAMEORIGIN`, `strict-origin-when-cross-origin`).

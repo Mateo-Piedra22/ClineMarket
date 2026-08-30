@@ -16,7 +16,7 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
 
 ### Prerequisites
 
-- **Node.js**: `v18.0.0` or higher (`v22.x` recommended).
+- **Node.js**: `v18.0.0` or higher (`v20.x`, `v22.x`, or `v24.x`).
 - **npm**: `v9.x` or higher.
 - **Git**: Latest version.
 - **Cline CLI**: Optional but recommended (`npm install -g cline`).
@@ -30,10 +30,11 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
    cd ClineMarket
    ```
 
-2. **Install Dependencies**:
+2. **Install Dependencies and Setup Hooks**:
    ```bash
    npm install
    ```
+   *Note: The `prepare` script will automatically configure git `pre-commit` and `pre-push` hooks via `scripts/setup-hooks.mjs`.*
 
 3. **Fetch Initial Catalog**:
    ```bash
@@ -46,8 +47,15 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
    ```
    Open `http://127.0.0.1:5173` in your browser.
 
-5. **Run Automated Test Suite**:
+5. **Run Automated Test Suites**:
    ```bash
+   # Run unit tests only
+   npm run test:unit
+
+   # Run integration smoke tests
+   npm run test:smoke
+
+   # Run full test gate
    npm test
    ```
 
@@ -58,27 +66,40 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
 ```
 ClineMarket/
 ├── .github/                  # GitHub Actions, Issue templates, and configs
-│   ├── workflows/            # CI, CodeQL, Sync-Catalog, Release
+│   ├── workflows/            # CI (Node 18/20/22/24), CodeQL, Sync, Release
 │   └── ISSUE_TEMPLATE/       # Structured issue forms
 ├── bin/
 │   └── cline-marketplace.js  # Zero-friction executable & CLI bootstrap
 ├── data/                     # Local state & caches (gitignored)
 │   ├── installed.json        # Reconciled local primitives
 │   ├── watchlist.json        # Starred items
+│   ├── settings.json         # Client preferences & MRU workspaces
 │   └── upstream-meta.json    # Upstream GitHub commit cache
 ├── docs/                     # Visual screenshots & architectural diagrams
+│   └── audits/               # 11-layer audit & fix protocol documentation
+├── lib/                      # Core backend modular services (ESM)
+│   ├── logger.js             # Structured ANSI logger & NO_COLOR support
+│   ├── probes.js             # Multi-root storage & config scanner
+│   ├── reconciler.js         # Filesystem state reconciler & drift detection
+│   ├── resolver.js           # Cross-platform binary & shim resolver
+│   ├── routes.js             # Express 5 API route handlers
+│   ├── runner.js             # Subprocess bridge with process tree management
+│   ├── sanitizers.js         # Security guards & path traversal validators
+│   └── state.js              # Atomic file I/O & corruption quarantine
 ├── public/                   # Frontend assets (Vanilla ES Modules)
-│   ├── index.html            # Main UI markup
+│   ├── index.html            # Main UI markup & SVG sprite sheet
 │   ├── styles.css            # DESIGN.md CSS design system
 │   ├── app.js                # State management, filtering & modals
 │   └── cline-logo.svg        # Authentic vector mascot
 ├── scripts/                  # Utilities & tooling
-│   ├── capture-screenshots.mjs # DevTools protocol automated captures
+│   ├── capture-screenshots.mjs # DevTools protocol automated 2x captures
 │   ├── detect-context.mjs    # Workspace stack heuristic analyzer
 │   ├── refresh-catalog.mjs   # Upstream mirror & sync worker
-│   └── smoke-test.mjs        # Automated API & CLI test suite
+│   ├── setup-hooks.mjs       # Git hook installer
+│   ├── smoke-test.mjs        # Strict endpoint integration test suite
+│   └── unit-test.mjs         # Native node:test pure unit tests
 ├── catalog.json              # Upstream catalog snapshot
-├── server.js                 # Express server & control plane
+├── server.js                 # Express 5 entrypoint, CSP & CSRF guards
 └── package.json              # Project manifest & scripts
 ```
 
@@ -104,18 +125,18 @@ All frontend modifications must adhere to [`DESIGN.md`](./DESIGN.md):
    - `feat/feature-name` for new capabilities.
    - `fix/issue-description` for bug fixes.
    - `docs/update-description` for documentation.
-2. **Ensure Smoke Tests Pass**:
+2. **Ensure All Test Gates Pass**:
    ```bash
    npm test
    ```
 3. **Commit Conventions**:
    We follow Conventional Commits:
-   - `feat: add new bundle recommendation heuristic`
-   - `fix: resolve port conflict on Windows platforms`
-   - `docs: update API reference in README`
+   - `feat(catalog): add stack heuristics for Python and Rust`
+   - `fix(runner): resolve process tree termination on Windows`
+   - `docs: update REST API reference in README`
 4. **Submit PR**:
    - Fill out the [Pull Request Template](./.github/PULL_REQUEST_TEMPLATE.md).
-   - Ensure GitHub Actions CI checks pass.
+   - Ensure GitHub Actions CI checks pass across the entire OS and Node matrix.
 
 ---
 

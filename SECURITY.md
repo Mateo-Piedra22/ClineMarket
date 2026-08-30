@@ -37,15 +37,28 @@ To help us triage and resolve the issue quickly, please provide:
 - **Triage & Assessment**: Within 5 business days.
 - **Fix & Public Disclosure**: We aim to release a patch within 14 days of confirmation.
 
-## Security Architecture & Design Principles
+## Security Architecture & Threat Model
 
 Cline Marketplace is designed with local-first, defense-in-depth principles:
 
-1. **Local Loopback Only**: The Express HTTP server strictly binds to `127.0.0.1`.
-2. **Subprocess Isolation**: External binaries (`cline`, `gh`, `npm`) are executed using argument vectors via `child_process.spawn()` with `windowsHide: true` and shell execution disabled (`shell: false`) for all variable inputs to prevent command injection.
-3. **Strict Input Sanitization**:
-   - Primitive types are restricted to `plugin`, `skill`, or `mcp`.
+1. **Local Loopback Only & CSRF Mitigation**:
+   - The Express HTTP server strictly binds to `127.0.0.1`.
+   - Mutating requests (`POST`, `PUT`, `DELETE`) are protected with `Origin` and `Sec-Fetch-Site` validation to prevent malicious cross-origin websites from triggering loopback actions.
+2. **Content-Security-Policy (CSP) & Defense-in-Depth Headers**:
+   - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com; frame-ancestors 'none';`
+   - `X-Content-Type-Options: nosniff`
+   - `X-Frame-Options: SAMEORIGIN`
+   - `Referrer-Policy: strict-origin-when-cross-origin`
+   - `X-XSS-Protection: 1; mode=block`
+   - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+3. **Subprocess Isolation & Process Tree Cleanup**:
+   - External binaries (`cline`, `gh`, `npm`) are executed using argument vectors via `child_process.execFile` / `spawn` with `windowsHide: true`.
+   - On Windows, timeouts trigger process tree termination (`taskkill /pid ${proc.pid} /T /F`) to prevent rogue child processes.
+   - Buffer size limits (`maxBuffer: 5MB`) are strictly bounded.
+4. **Strict Input Sanitization & Path Traversal Guards**:
+   - Primitive types are restricted strictly to `plugin`, `skill`, or `mcp`.
    - Primitive IDs are validated against `/^[a-zA-Z0-9@_.-]+$/` with explicit checks preventing path traversal (`..`), slashes, and control characters.
-   - Workspace paths supplied to heuristics are validated with `statSync.isDirectory()` before processing.
-4. **Atomic File Writes**: State modifications (`data/installed.json`, `data/watchlist.json`) use temporary files followed by atomic renames to prevent partial write corruption.
-5. **Security Headers**: Standard HTTP headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`) are enforced across all responses.
+   - Workspace paths supplied to heuristics are normalized and validated with `statSync.isDirectory()` before processing.
+5. **Atomic File Persistence & Corruption Quarantine**:
+   - All state modifications (`data/installed.json`, `data/watchlist.json`, `data/settings.json`) write to temporary files before executing atomic renames.
+   - If an unparseable JSON file is detected during startup, an automatic backup `${p}.corrupt.<timestamp>` is quarantined and destructive overwriting is prevented.
