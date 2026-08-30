@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Global CLI for the Cline Marketplace local browser.
-// One-shot: prepare → start → wait until ready → open the browser.
+// Global CLI & NPX Runner for the Cline Marketplace local browser.
+// One-shot: auto-install deps if needed → verify catalog → start server → open browser.
 
 import { spawn } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -17,6 +17,7 @@ const pkgRoot = resolve(__dirname, "..");
 const serverEntry = join(pkgRoot, "server.js");
 const refreshScript = join(pkgRoot, "scripts/refresh-catalog.mjs");
 const catalogFile = join(pkgRoot, "catalog.json");
+const pkgJsonFile = join(pkgRoot, "package.json");
 
 const colors = {
   reset: "\x1b[0m",
@@ -50,9 +51,11 @@ const HELP = `
 ${colors.bold}cline-marketplace${colors.reset} — Local browser and control plane for Cline Marketplace primitives.
 
 ${colors.bold}Usage:${colors.reset}
-  cline-marketplace                   Full launch flow: prepare → start server → open browser
-  cline-marketplace --no-open         Start server without opening browser
+  npx cline-marketplace               One-shot launch: prepare → start server → open browser
+  cline-marketplace                   Standard CLI launch
+  cline-marketplace --no-open         Start server without opening browser window
   cline-marketplace --port <n>        Specify server port (default: 5173 or next available)
+  cline-marketplace update            Check for updates and pull latest version
   cline-marketplace refresh           Re-download catalog and refresh upstream metadata
   cline-marketplace refresh --catalog Fast catalog refresh (skip commit metadata)
   cline-marketplace help              Display this help message
@@ -68,6 +71,23 @@ const sub = args[0];
 const NO_OPEN = args.includes("--no-open");
 const portIdx = args.indexOf("--port");
 const cliPort = portIdx >= 0 ? Number(args[portIdx + 1]) : null;
+
+// Self-bootstrap: ensure dependencies are installed (crucial for npx execution)
+async function ensureDependencies() {
+  const expressModule = join(pkgRoot, "node_modules", "express");
+  if (!existsSync(expressModule)) {
+    log("Initializing local runtime dependencies (first-time setup)...");
+    try {
+      await execFileP(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "--omit=dev"], {
+        cwd: pkgRoot,
+        timeout: 90_000,
+      });
+      log("Runtime dependencies ready.");
+    } catch (err) {
+      warn(`Could not run npm install automatically: ${err.message}`);
+    }
+  }
+}
 
 function ensureServerEntry() {
   if (!existsSync(serverEntry)) {
@@ -92,6 +112,27 @@ async function fetchCatalog() {
     warn(`Catalog download failed: ${err.message}`);
     return false;
   }
+}
+
+async function checkForRemoteUpdates() {
+  try {
+    const pkg = JSON.parse(readFileSync(pkgJsonFile, "utf8"));
+    const currentVersion = pkg.version || "1.0.0";
+    const res = await fetch("https://raw.githubusercontent.com/Mateo-Piedra22/ClineMarket/main/package.json", {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const remotePkg = await res.json();
+      if (remotePkg.version && remotePkg.version !== currentVersion) {
+        console.log("");
+        console.log(`${colors.yellow}┌────────────────────────────────────────────────────────┐${colors.reset}`);
+        console.log(`${colors.yellow}│${colors.reset}  ${colors.bold}Update Available:${colors.reset} v${currentVersion} -> ${colors.green}v${remotePkg.version}${colors.reset}${" ".repeat(25)}${colors.yellow}│${colors.reset}`);
+        console.log(`${colors.yellow}│${colors.reset}  Run ${colors.cyan}git pull${colors.reset} or ${colors.cyan}npm install -g cline-marketplace${colors.reset}${" ".repeat(8)}${colors.yellow}│${colors.reset}`);
+        console.log(`${colors.yellow}└────────────────────────────────────────────────────────┘${colors.reset}`);
+        console.log("");
+      }
+    }
+  } catch {}
 }
 
 async function isPortOpen(port, host) {
@@ -166,13 +207,30 @@ function openBrowser(url) {
   }
 }
 
-if (sub === "refresh") {
+if (sub === "update") {
+  log("Checking for updates and pulling latest changes...");
+  try {
+    const gitDir = join(pkgRoot, ".git");
+    if (existsSync(gitDir)) {
+      await execFileP("git", ["pull", "origin", "main"], { cwd: pkgRoot });
+      log("Updated from git successfully.");
+    } else {
+      await execFileP(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "-g", "cline-marketplace@latest"]);
+      log("Updated global package via npm.");
+    }
+  } catch (err) {
+    error(`Update failed: ${err.message}`);
+  }
+  process.exit(0);
+} else if (sub === "refresh") {
+  await ensureDependencies();
   ensureServerEntry();
   log("Running catalog refresh...");
   const child = spawn(process.execPath, [refreshScript, ...args.slice(1)], { stdio: "inherit", cwd: pkgRoot });
   child.on("exit", (code) => process.exit(code ?? 0));
 } else {
   // Default: full flow
+  await ensureDependencies();
   ensureServerEntry();
   const port = Number(cliPort || process.env.PORT || 5173);
   const host = process.env.HOST || "127.0.0.1";
@@ -182,6 +240,9 @@ if (sub === "refresh") {
     log("Catalog cache missing or older than 24h.");
     await fetchCatalog();
   }
+
+  // Non-blocking update check
+  checkForRemoteUpdates().catch(() => {});
 
   let ownedChild = null;
   if (await isPortOpen(port, host)) {

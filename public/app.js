@@ -1455,9 +1455,9 @@ function wireActions() {
     }
   });
 
-  $("#btnRescan").addEventListener("click", async () => {
+  $("#btnRescan")?.addEventListener("click", async () => {
     const btn = $("#btnRescan");
-    btn.disabled = true;
+    if (btn) btn.disabled = true;
     try {
       await refreshInstalled();
       await loadCatalog();
@@ -1467,15 +1467,15 @@ function wireActions() {
     } catch (err) {
       toast("Rescan failed", String(err.message || err), "error");
     } finally {
-      btn.disabled = false;
+      if (btn) btn.disabled = false;
     }
   });
 
-  $("#btnRefresh").addEventListener("click", async () => {
+  $("#btnRefresh")?.addEventListener("click", async () => {
     const btn = $("#btnRefresh");
-    btn.disabled = true;
-    const oldLabel = btn.textContent;
-    btn.textContent = "Refreshing…";
+    if (btn) btn.disabled = true;
+    const oldLabel = btn ? btn.textContent : "Refresh";
+    if (btn) btn.textContent = "Refreshing…";
     try {
       const res = await postJson("/api/refresh", {});
       toast("Catalog refreshed", `${res.entries} entries · meta for ${res.metaCount}`, "success");
@@ -1483,16 +1483,18 @@ function wireActions() {
     } catch (err) {
       toast("Refresh failed", String(err.message || err) + "\n\nRun `cline-marketplace refresh` from a terminal.", "error");
     } finally {
-      btn.disabled = false;
-      btn.textContent = oldLabel;
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = oldLabel;
+      }
     }
   });
 
-  $("#btnExport").addEventListener("click", () => {
+  $("#btnExport")?.addEventListener("click", () => {
     window.location.href = "/api/export";
   });
 
-  $("#fileImport").addEventListener("change", async (e) => {
+  $("#fileImport")?.addEventListener("change", async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     try {
@@ -1553,12 +1555,28 @@ function wireActions() {
 
 // ---- Initialization --------------------------------------------------------
 
+async function checkUpdate() {
+  try {
+    const res = await fetch("https://raw.githubusercontent.com/Mateo-Piedra22/ClineMarket/main/package.json", {
+      signal: AbortSignal.timeout(3500),
+    });
+    if (res.ok) {
+      const remote = await res.json();
+      const local = await getJson("/api/version");
+      if (remote.version && local.version && remote.version !== local.version) {
+        toast(`Update Available: v${remote.version}`, "Run `cline-marketplace update` to pull the latest version.", "warn");
+      }
+    }
+  } catch {}
+}
+
 (async function init() {
   wireFilters();
   wireTabs();
   wireActions();
   try {
     await reloadAll();
+    checkUpdate();
   } catch (err) {
     toast("Failed to load catalog", String(err.message || err), "error");
   }

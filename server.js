@@ -708,9 +708,11 @@ app.get("/api/status", (req, res) => {
   const installed = reconcile(loadInstalled(), probe);
   const catalog = loadCatalog();
   const meta = loadMeta();
+  const pkg = readJson(join(root, "package.json"), { version: "1.0.0" });
 
   res.json({
     ok: true,
+    version: pkg.version,
     node: process.version,
     platform: platform(),
     clinePath: _cachedClinePath || null,
@@ -725,6 +727,11 @@ app.get("/api/status", (req, res) => {
     installedCount: Object.values(installed.items).filter((it) => it.detected).length,
     metaCount: Object.keys(meta).length,
   });
+});
+
+app.get("/api/version", (req, res) => {
+  const pkg = readJson(join(root, "package.json"), { version: "1.0.0" });
+  res.json({ version: pkg.version, app: "cline-marketplace" });
 });
 
 // ---- Install / Uninstall / Mark Handlers (with Guard Protection) ----------

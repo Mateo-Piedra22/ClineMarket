@@ -1,23 +1,54 @@
 {
   "name": "cline-marketplace",
   "version": "1.0.0",
-  "private": true,
+  "description": "Official Primitive Registry & Local Control Plane for Cline (Plugins, Skills, and MCP Servers)",
   "type": "module",
-  "description": "Local browser for the Cline Marketplace. Browse, install, uninstall and verify plugins, skills and MCP servers from one page.",
+  "main": "server.js",
   "bin": {
     "cline-marketplace": "bin/cline-marketplace.js"
   },
+  "files": [
+    "bin",
+    "public",
+    "scripts",
+    "docs",
+    "catalog.json",
+    "server.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
     "refresh": "node scripts/refresh-catalog.mjs",
     "link": "npm link",
-    "unlink": "npm unlink -g cline-marketplace"
+    "unlink": "npm unlink -g cline-marketplace",
+    "test": "node scripts/smoke-test.mjs"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mateo-Piedra22/ClineMarket.git"
+  },
+  "keywords": [
+    "cline",
+    "marketplace",
+    "plugins",
+    "skills",
+    "mcp",
+    "mcp-servers",
+    "cli",
+    "control-plane"
+  ],
+  "author": "Mateo Piedrabuena <piedrabuena.mateo03@gmail.com>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Mateo-Piedra22/ClineMarket/issues"
+  },
+  "homepage": "https://github.com/Mateo-Piedra22/ClineMarket#readme",
   "dependencies": {
     "express": "^4.21.2"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.0.0"
   }
 }

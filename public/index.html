@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cline Marketplace — Primitive Registry</title>
+  <title>Cline Marketplace — Primitive Registry & Control Plane</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <!-- SVG Icon Sprite Definition (Zero AI Slop / 100% Vector) -->
+  <!-- Vector SVG Sprites -->
   <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
     <symbol id="icon-search" viewBox="0 0 16 16">
       <path fill="currentColor" d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z"/>
@@ -55,16 +55,18 @@
     </symbol>
   </svg>
 
+  <!-- Top Header Shell -->
   <header class="topbar">
     <div class="brand">
-      <div class="logo-wrap">
-        <img src="/cline-logo.svg" alt="Cline" class="brand-logo-img" />
+      <div class="brand-tile">
+        <img src="/cline-logo.svg" alt="Cline" />
       </div>
       <div>
         <h1>Cline Marketplace</h1>
-        <p class="muted">Primitive Registry · Plugins · Skills · MCP Servers</p>
+        <p>Official Primitive Registry · Control Plane</p>
       </div>
     </div>
+
     <div class="status-strip" id="statusStrip">
       <span class="pill" id="pillTotal"><span class="dot"></span> catalog: …</span>
       <span class="pill" id="pillInstalled"><span class="dot"></span> installed: …</span>
@@ -73,53 +75,62 @@
       <span class="pill" id="pillCli"><span class="dot"></span> cline CLI: …</span>
       <span class="pill" id="pillHealth"><span class="dot"></span> health: …</span>
     </div>
+
     <div class="actions">
-      <button id="btnBulkMode" class="ghost" aria-label="Toggle bulk selection mode" title="Toggle bulk selection mode">
+      <button id="btnBulkMode" class="ghost small" aria-label="Toggle bulk selection mode" title="Toggle bulk selection mode">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-bulk"></use></svg>
-        <span>Bulk Actions</span>
+        <span>Bulk Mode</span>
       </button>
-      <button id="btnToggleSidebar" class="btn-mobile-filters ghost" aria-label="Toggle filter sidebar">
-        <svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>
-        <span>Filters</span>
-      </button>
-      <button id="btnHelp" class="ghost" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts"><kbd>?</kbd></button>
-      <button id="btnRefresh" class="primary">
-        <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
-        <span>Refresh Catalog</span>
-      </button>
-      <button id="btnRescan">
+      <button id="btnRescan" class="ghost small" aria-label="Rescan local primitives" title="Rescan local files">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-scan"></use></svg>
         <span>Rescan</span>
       </button>
-      <button id="btnShutdown" class="danger" title="Stop and shutdown local server" aria-label="Stop Server">
+      <button id="btnHelp" class="ghost small" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts"><kbd>?</kbd></button>
+      <button id="btnRefresh" class="primary small">
+        <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+        <span>Refresh</span>
+      </button>
+      <button id="btnShutdown" class="danger small" title="Stop local server" aria-label="Stop Server">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-power"></use></svg>
-        <span>Stop Server</span>
+        <span>Stop</span>
       </button>
     </div>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Marketplace Navigation">
-    <button class="tab active" role="tab" aria-selected="true" data-tab="catalog">Catalog</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="recommended">Recommended <span class="tab-badge" id="recBadge" hidden>0</span></button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="watchlist">Watchlist <span class="tab-badge" id="watchBadge" hidden>0</span></button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="stats">Stats</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="changelog">Changelog</button>
-    <button class="tab" role="tab" aria-selected="false" data-tab="health">Health</button>
+  <!-- Floating Pill Navigation (DESIGN.md) -->
+  <nav class="nav-floating-wrap" role="tablist" aria-label="Navigation">
+    <div class="nav-pill-bar">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="catalog">Catalog</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="recommended">Recommended <span class="tab-badge" id="recBadge" hidden>0</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="watchlist">Watchlist <span class="tab-badge" id="watchBadge" hidden>0</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="stats">Stats</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="changelog">Changelog</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="health">Health</button>
+    </div>
   </nav>
 
-  <!-- Floating Bulk Action Toolbar -->
-  <aside id="bulkBar" class="bulk-bar hidden" aria-label="Bulk actions toolbar">
+  <!-- 5 Candy-Colored Icon Tiles Lockup (DESIGN.md) -->
+  <aside class="brand-quintet-bar" aria-hidden="true">
+    <div class="quintet-tile tile-violet"><svg class="ui-icon" style="width:18px;height:18px"><use href="#icon-package"></use></svg></div>
+    <div class="quintet-tile tile-green"><svg class="ui-icon" style="width:18px;height:18px"><use href="#icon-check"></use></svg></div>
+    <div class="quintet-tile tile-orange"><svg class="ui-icon" style="width:18px;height:18px"><use href="#icon-sparkle"></use></svg></div>
+    <div class="quintet-tile tile-yellow"><svg class="ui-icon" style="width:18px;height:18px"><use href="#icon-star-filled"></use></svg></div>
+    <div class="quintet-tile tile-blue"><svg class="ui-icon" style="width:18px;height:18px"><use href="#icon-terminal"></use></svg></div>
+  </aside>
+
+  <!-- Floating Bulk Action Bar -->
+  <aside id="bulkBar" class="bulk-bar hidden" aria-label="Bulk toolbar">
     <div class="bulk-bar-inner">
-      <div class="bulk-count-group">
+      <div style="display:flex;align-items:center;gap:12px">
         <label class="bulk-check-all-label">
-          <input type="checkbox" id="bulkSelectAll" /> Select all visible
+          <input type="checkbox" id="bulkSelectAll" /> Select visible
         </label>
         <span class="bulk-count-badge" id="bulkCountBadge">0 selected</span>
       </div>
-      <div class="bulk-buttons">
+      <div style="display:flex;gap:8px">
         <button id="btnBulkInstall" class="primary small">Install Selected</button>
-        <button id="btnBulkUninstall" class="danger small">Uninstall Selected</button>
-        <button id="btnBulkWatch" class="ghost small">Add to Watchlist</button>
+        <button id="btnBulkUninstall" class="danger small">Uninstall</button>
+        <button id="btnBulkWatch" class="ghost small">Watchlist</button>
         <button id="btnBulkClear" class="ghost small">Clear</button>
       </div>
     </div>
@@ -132,7 +143,7 @@
         <div class="search-wrap">
           <svg class="search-icon ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
           <input type="search" id="search" placeholder="Search primitives, authors, tags…" aria-label="Search catalog" autocomplete="off" />
-          <button type="button" id="searchClear" class="search-clear hidden" aria-label="Clear search input">
+          <button type="button" id="searchClear" class="search-clear hidden" aria-label="Clear search">
             <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
           </button>
         </div>
@@ -149,7 +160,7 @@
       </section>
 
       <section>
-        <h3>State & Flags</h3>
+        <h3>State &amp; Flags</h3>
         <label class="check"><input type="checkbox" id="onlyInstalled" /> Installed only</label>
         <label class="check"><input type="checkbox" id="onlyLocal" /> Local / Custom only</label>
         <label class="check"><input type="checkbox" id="onlyVerified" /> Verified only</label>
@@ -160,7 +171,7 @@
       </section>
 
       <section>
-        <h3>Tags <button id="btnClearTags" class="ghost small hidden" style="font-size:10px;padding:1px 6px">clear</button></h3>
+        <h3>Tags <button id="btnClearTags" class="ghost small hidden" style="font-size:10px;padding:2px 8px">clear</button></h3>
         <div class="chips small" id="tagFilter" role="group" aria-label="Filter by tags"></div>
       </section>
 
@@ -175,40 +186,25 @@
         </select>
       </section>
 
-      <section id="contextPanel" class="context-panel">
+      <section class="context-panel" style="background:#181818;border:1px solid #2d2d2d;border-radius:18px;padding:16px">
         <h3>Project Workspace</h3>
-        <div id="contextSummary"><span class="muted small">detecting stack…</span></div>
-        <input type="text" id="contextCwd" placeholder="override workspace path…" aria-label="Project workspace path" />
+        <div id="contextSummary"><span class="muted small" style="color:#888">detecting stack…</span></div>
+        <input type="text" id="contextCwd" placeholder="override workspace path…" aria-label="Project workspace path" style="margin-top:10px" />
       </section>
 
-      <section class="legend">
-        <h3>Legend</h3>
-        <div class="legend-list">
-          <div class="legend-item"><span class="badge verified">verified</span> Verified primitive</div>
-          <div class="legend-item"><span class="badge featured">featured</span> Featured in registry</div>
-          <div class="legend-item"><span class="badge new">new</span> Added recently</div>
-          <div class="legend-item"><span class="badge installed">installed</span> Detected on disk</div>
-          <div class="legend-item"><span class="badge local">local</span> Custom local source</div>
-          <div class="legend-item"><span class="badge drift">drift</span> Missing from filesystem</div>
-          <div class="legend-item"><span class="badge watchlist">watch</span> Tracked in watchlist</div>
-        </div>
-      </section>
-
-      <section class="footer-tip">
-        <p class="muted small">Press <kbd>/</kbd> to search · <kbd>?</kbd> for keybinds · <kbd>Esc</kbd> closes modals</p>
-        <div class="export-row">
-          <button id="btnExport" class="ghost small">Export installed</button>
-          <label class="import-label ghost small">Import<input type="file" id="fileImport" accept="application/json" hidden /></label>
+      <section class="footer-tip" style="font-size:12px;color:#777">
+        <p>Press <kbd>/</kbd> to search · <kbd>?</kbd> for shortcuts</p>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="btnExport" class="ghost small">Export</button>
+          <label class="import-label ghost small" style="padding:5px 12px;border:1px solid #333;border-radius:var(--radius-pills);cursor:pointer">Import<input type="file" id="fileImport" accept="application/json" hidden /></label>
         </div>
       </section>
     </aside>
 
-    <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
-
     <section class="content">
       <!-- Active filters bar -->
       <div id="activeFiltersBar" class="active-filters-bar hidden">
-        <span class="label">Active Filters:</span>
+        <span style="font-size:12px;color:#777;font-weight:700;text-transform:uppercase">Active Filters:</span>
         <div id="activeFiltersList" class="chips small"></div>
         <button id="btnClearAllFilters" class="ghost small" style="margin-left:auto;">Clear all</button>
       </div>
@@ -216,41 +212,35 @@
       <!-- Catalog tab -->
       <div id="tab-catalog" class="tab-pane active" role="tabpanel">
         <div id="results" class="grid"></div>
-        <div id="emptyState" class="empty hidden">
-          <div class="empty-icon-wrap">
-            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-empty-state"></use></svg>
+        <div id="emptyState" class="empty hidden" style="text-align:center;padding:60px 20px">
+          <div style="width:56px;height:56px;margin:0 auto 16px auto;display:grid;place-items:center;border-radius:50%;background:#232323;color:#888">
+            <svg class="ui-icon" style="width:28px;height:28px" aria-hidden="true"><use href="#icon-empty-state"></use></svg>
           </div>
-          <h2>No matching primitives</h2>
-          <p class="muted">Adjust or clear active filters, or pull upstream updates via refresh.</p>
+          <h2 style="font-family:var(--font-display);font-size:22px;margin:0 0 6px 0">No matching primitives</h2>
+          <p style="color:#888;margin:0 0 16px 0">Adjust or clear active filters, or pull upstream updates.</p>
           <button id="btnEmptyClearFilters" class="primary">Reset filters</button>
         </div>
       </div>
 
       <!-- Recommended tab -->
       <div id="tab-recommended" class="tab-pane" role="tabpanel">
-        <div id="recIntro" class="intro"></div>
-        <div id="recBundles" class="rec-bundles-wrap" style="margin-bottom:24px"></div>
-        <div class="section-label" id="recIndividualTitle" style="margin-bottom:12px">Matched Primitives for Your Workspace</div>
+        <div id="recIntro" class="intro" style="margin-bottom:18px;font-size:14px;color:#999"></div>
+        <div id="recBundles" class="rec-bundles-wrap" style="margin-bottom:28px"></div>
+        <div style="font-family:var(--font-display);font-size:16px;font-weight:800;letter-spacing:-0.02em;margin-bottom:14px">Matched Primitives for Your Workspace</div>
         <div id="recGrid" class="grid"></div>
-        <div id="recEmpty" class="empty hidden">
-          <div class="empty-icon-wrap">
-            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-sparkle"></use></svg>
-          </div>
-          <h2>No workspace recommendations detected</h2>
-          <p class="muted">Specify your project directory in the sidebar or run from within a repository.</p>
+        <div id="recEmpty" class="empty hidden" style="text-align:center;padding:60px 20px">
+          <h2 style="font-family:var(--font-display);font-size:20px;margin:0 0 6px 0">No workspace recommendations</h2>
+          <p style="color:#888">Specify your project directory in the sidebar.</p>
         </div>
       </div>
 
       <!-- Watchlist tab -->
       <div id="tab-watchlist" class="tab-pane" role="tabpanel">
-        <div id="watchIntro" class="intro"></div>
+        <div id="watchIntro" class="intro" style="margin-bottom:18px;font-size:14px;color:#999"></div>
         <div id="watchGrid" class="grid"></div>
-        <div id="watchEmpty" class="empty hidden">
-          <div class="empty-icon-wrap">
-            <svg class="empty-icon-svg" aria-hidden="true"><use href="#icon-star-outline"></use></svg>
-          </div>
-          <h2>Your watchlist is empty</h2>
-          <p class="muted">Click the star button on any primitive card to track it here.</p>
+        <div id="watchEmpty" class="empty hidden" style="text-align:center;padding:60px 20px">
+          <h2 style="font-family:var(--font-display);font-size:20px;margin:0 0 6px 0">Your watchlist is empty</h2>
+          <p style="color:#888;margin-bottom:16px">Click the star button on any primitive to track it here.</p>
           <button id="btnGoToCatalog" class="primary">Browse Catalog</button>
         </div>
       </div>
@@ -259,7 +249,7 @@
       <div id="tab-stats" class="tab-pane" role="tabpanel">
         <div class="stats-grid">
           <section class="stat-card"><h3>By Primitive Type</h3><div id="statByType"></div></section>
-          <section class="stat-card"><h3>Top Authors</h3><ol id="statAuthors"></ol></section>
+          <section class="stat-card"><h3>Top Authors</h3><ol id="statAuthors" style="padding-left:18px;margin:0"></ol></section>
           <section class="stat-card"><h3>Commit Freshness</h3><div id="statFreshness"></div></section>
           <section class="stat-card"><h3>Popular Categories</h3><div id="statTags"></div></section>
           <section class="stat-card wide"><h3>Installed Coverage</h3><div id="statInstalled"></div></section>
@@ -277,17 +267,17 @@
 
       <!-- Health tab -->
       <div id="tab-health" class="tab-pane" role="tabpanel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;max-width:800px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;max-width:800px">
           <div>
-            <h2 style="margin:0 0 4px 0;font-size:16px">System & CLI Diagnostics</h2>
-            <p class="muted small" style="margin:0">Health verification of runtime dependencies, CLI binaries, and local storage.</p>
+            <h2 style="font-family:var(--font-display);font-size:18px;margin:0 0 4px 0">System &amp; CLI Diagnostics</h2>
+            <p style="color:#888;margin:0;font-size:13px">Health status of runtime environment, CLI binaries, and local storage.</p>
           </div>
           <div style="display:flex;gap:8px">
-            <button id="btnCopySysInfo" class="ghost small">Copy Diagnostics</button>
-            <button id="btnHealthRefresh" class="ghost small">Run Verification</button>
+            <button id="btnCopySysInfo" class="ghost small">Copy Info</button>
+            <button id="btnHealthRefresh" class="ghost small">Run Probes</button>
           </div>
         </div>
-        <div id="healthList" class="health-list"></div>
+        <div id="healthList" class="health-list" style="display:grid;gap:12px;max-width:800px"></div>
       </div>
     </section>
   </main>
@@ -302,51 +292,45 @@
     </div>
   </div>
 
-  <!-- Help / Keybinds Modal -->
+  <!-- Help Modal -->
   <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-    <div class="modal-card help-card">
+    <div class="modal-card" style="max-width:600px">
       <button class="modal-close" id="helpClose" aria-label="Close shortcuts modal">
         <svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg>
       </button>
-      <h2 id="helpTitle">Keyboard Shortcuts</h2>
-      <p class="muted small">Quick navigation and action shortcuts across the marketplace.</p>
+      <h2 id="helpTitle" style="font-family:var(--font-display);font-size:22px;margin:0 0 6px 0">Keyboard Shortcuts</h2>
+      <p style="color:#888;font-size:13px;margin-bottom:18px">Navigate and execute actions across the marketplace.</p>
       
-      <table class="kbds">
-        <thead>
-          <tr><th style="text-align:left;color:var(--fg-dim);font-size:11px;padding-bottom:6px">Key</th><th style="text-align:left;color:var(--fg-dim);font-size:11px;padding-bottom:6px">Action</th></tr>
-        </thead>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
         <tbody>
-          <tr><td><kbd>/</kbd></td><td>Focus search input</td></tr>
-          <tr><td><kbd>b</kbd></td><td>Toggle bulk selection mode</td></tr>
-          <tr><td><kbd>g</kbd></td><td>Navigate to Catalog</td></tr>
-          <tr><td><kbd>r</kbd></td><td>Navigate to Recommended</td></tr>
-          <tr><td><kbd>w</kbd></td><td>Navigate to Watchlist</td></tr>
-          <tr><td><kbd>s</kbd></td><td>Navigate to Stats</td></tr>
-          <tr><td><kbd>c</kbd></td><td>Navigate to Changelog</td></tr>
-          <tr><td><kbd>h</kbd></td><td>Navigate to Health & Diagnostics</td></tr>
-          <tr><td><kbd>?</kbd></td><td>Open keyboard shortcuts reference</td></tr>
-          <tr><td><kbd>Esc</kbd></td><td>Dismiss active modal or clear search</td></tr>
+          <tr><td style="padding:6px 0"><kbd>/</kbd></td><td>Focus search input</td></tr>
+          <tr><td style="padding:6px 0"><kbd>b</kbd></td><td>Toggle bulk selection mode</td></tr>
+          <tr><td style="padding:6px 0"><kbd>g</kbd></td><td>Go to Catalog</td></tr>
+          <tr><td style="padding:6px 0"><kbd>r</kbd></td><td>Go to Recommended</td></tr>
+          <tr><td style="padding:6px 0"><kbd>w</kbd></td><td>Go to Watchlist</td></tr>
+          <tr><td style="padding:6px 0"><kbd>s</kbd></td><td>Go to Stats</td></tr>
+          <tr><td style="padding:6px 0"><kbd>c</kbd></td><td>Go to Changelog</td></tr>
+          <tr><td style="padding:6px 0"><kbd>h</kbd></td><td>Go to Health &amp; Diagnostics</td></tr>
+          <tr><td style="padding:6px 0"><kbd>?</kbd></td><td>Open this shortcuts modal</td></tr>
+          <tr><td style="padding:6px 0"><kbd>Esc</kbd></td><td>Close modals or clear search</td></tr>
         </tbody>
       </table>
 
-      <h3 style="margin-top:20px;font-size:13px;text-transform:uppercase;color:var(--fg-dim);letter-spacing:.08em">CLI Commands</h3>
-      <p class="muted small">Execute <code>cline-marketplace</code> to start this local web server, or <code>cline-marketplace refresh</code> to update the registry index.</p>
-      
-      <div class="help-foot">
+      <div style="display:flex;justify-content:flex-end;margin-top:24px">
         <button class="primary" id="helpCloseFooter">Done</button>
       </div>
     </div>
   </div>
 
-  <!-- Shutdown Confirmation & Feedback Modal -->
+  <!-- Shutdown Confirmation Modal -->
   <div id="shutdownModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="shutdownTitle">
     <div class="modal-card" style="max-width:440px;text-align:center">
-      <div class="modal-icon-wrap" style="width:48px;height:48px;margin:0 auto 12px auto;display:grid;place-items:center;border-radius:50%;background:var(--danger-bg);border:1px solid var(--danger-border);color:var(--danger)">
+      <div style="width:48px;height:48px;margin:0 auto 14px auto;display:grid;place-items:center;border-radius:50%;background:rgba(255,109,56,0.15);color:var(--color-ember-orange)">
         <svg class="ui-icon" style="width:24px;height:24px" aria-hidden="true"><use href="#icon-power"></use></svg>
       </div>
-      <h2 id="shutdownTitle" style="margin:0 0 8px 0;font-size:18px">Shut Down Local Server?</h2>
-      <p class="muted small" style="line-height:1.5;margin-bottom:20px">
-        This will terminate the local Node.js process. You can restart it at any time with <code>npm start</code> or <code>cline-marketplace</code>.
+      <h2 id="shutdownTitle" style="font-family:var(--font-display);font-size:20px;margin:0 0 8px 0">Shut Down Local Server?</h2>
+      <p style="color:#888;font-size:13px;line-height:1.5;margin-bottom:24px">
+        This will stop the local process. You can restart it anytime with <code>cline-marketplace</code> or <code>npm start</code>.
       </p>
       <div style="display:flex;gap:10px;justify-content:center">
         <button id="btnCancelShutdown" class="ghost">Cancel</button>
@@ -355,17 +339,17 @@
     </div>
   </div>
 
-  <!-- Server Stopped Screen Overlay -->
-  <div id="serverStoppedOverlay" class="modal hidden" role="dialog" aria-modal="true" style="backdrop-filter:blur(10px)">
-    <div class="modal-card" style="max-width:460px;text-align:center;padding:36px 24px">
-      <div class="modal-icon-wrap" style="width:56px;height:56px;margin:0 auto 14px auto;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--fg-dim)">
+  <!-- Server Stopped Overlay -->
+  <div id="serverStoppedOverlay" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card" style="max-width:460px;text-align:center;padding:40px 24px">
+      <div style="width:56px;height:56px;margin:0 auto 16px auto;display:grid;place-items:center;border-radius:50%;background:#141414;color:#888">
         <svg class="ui-icon" style="width:28px;height:28px" aria-hidden="true"><use href="#icon-terminal"></use></svg>
       </div>
-      <h2 style="margin:0 0 8px 0;font-size:20px">Server Stopped</h2>
-      <p class="muted small" style="line-height:1.6;margin-bottom:20px">
-        The Cline Marketplace local server has been shut down cleanly.<br>You can now safely close this browser tab.
+      <h2 style="font-family:var(--font-display);font-size:22px;margin:0 0 8px 0">Server Stopped</h2>
+      <p style="color:#888;font-size:13px;line-height:1.6;margin-bottom:20px">
+        The Cline Marketplace server process has exited.<br>You can now safely close this browser window.
       </p>
-      <div style="background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-family:var(--mono);font-size:12px;color:var(--cline-cyan)">
+      <div style="background:#141414;border:1px solid #333;border-radius:var(--radius-pills);padding:10px 18px;font-family:var(--font-mono);font-size:12px;color:var(--color-acid-lime)">
         $ cline-marketplace
       </div>
     </div>
