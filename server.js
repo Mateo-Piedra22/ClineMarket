@@ -37,6 +37,33 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Permissions-Policy", "interest-cohort=()");
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com;"
+  );
+  next();
+});
+
+// Mutating Requests Loopback / Same-Origin CSRF Protection
+app.use((req, res, next) => {
+  if (["POST", "PUT", "DELETE", "PATCH"].includes(req.method)) {
+    const origin = req.headers.origin || req.headers.referer;
+    const secFetchSite = req.headers["sec-fetch-site"];
+
+    if (secFetchSite && !["same-origin", "same-site", "none"].includes(secFetchSite)) {
+      return res.status(403).json({ error: "Forbidden: Cross-origin mutating requests are blocked." });
+    }
+
+    if (origin) {
+      const isLocal =
+        origin.startsWith("http://127.0.0.1:") ||
+        origin.startsWith("http://localhost:") ||
+        origin.startsWith("http://[::1]:");
+      if (!isLocal) {
+        return res.status(403).json({ error: "Forbidden: Request origin is not a trusted local host." });
+      }
+    }
+  }
   next();
 });
 
@@ -76,6 +103,12 @@ app.use("/api", apiRouter);
 app.use((req, res, next) => {
   if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
   res.sendFile(join(root, "public", "index.html"));
+});
+
+// Global Express Error Handler
+app.use((err, req, res, next) => {
+  logger.error(`Unhandled request error: ${err.message}`);
+  res.status(err.status || 500).json({ ok: false, error: err.message || "Internal Server Error" });
 });
 
 // Port Discovery & Server Startup

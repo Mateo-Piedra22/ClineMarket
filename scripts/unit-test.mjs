@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-// Pure unit test suite for Cline Marketplace sanitizers, state engine, and command resolvers.
+// Pure unit test suite for Cline Marketplace sanitizers, state engine, reconciler, and resolvers.
 
 import test from "node:test";
 import assert from "node:assert/strict";
 import { unlinkSync } from "node:fs";
-import { resolveCommand } from "./lib/resolve-command.mjs";
+import { resolveCommand, isWindowsBatchShim } from "../lib/resolver.js";
 import {
   sanitizePrimitiveId,
   sanitizePrimitiveType,
   sanitizeWorkspacePath,
-  isWindowsBatchShim,
 } from "../lib/sanitizers.js";
 import { readJson, safeWriteJson } from "../lib/state.js";
+import { reconcile } from "../lib/reconciler.js";
+import { verbFor } from "../lib/runner.js";
 
 test("sanitizers: sanitizePrimitiveId", () => {
   // Valid IDs
@@ -54,9 +55,9 @@ test("sanitizers: sanitizeWorkspacePath", () => {
   assert.equal(sanitizeWorkspacePath(null, cwd), cwd);
 });
 
-test("sanitizers: isWindowsBatchShim", () => {
-  assert.equal(isWindowsBatchShim("C:\\bin\\cline.cmd"), true);
-  assert.equal(isWindowsBatchShim("C:\\bin\\cline.bat"), true);
+test("resolver: isWindowsBatchShim", () => {
+  assert.equal(isWindowsBatchShim("C:\\bin\\cline.cmd"), process.platform === "win32");
+  assert.equal(isWindowsBatchShim("C:\\bin\\cline.bat"), process.platform === "win32");
   assert.equal(isWindowsBatchShim("C:\\bin\\cline.exe"), false);
   assert.equal(isWindowsBatchShim("/usr/local/bin/cline"), false);
   assert.equal(isWindowsBatchShim(null), false);
@@ -78,6 +79,49 @@ test("state: safeWriteJson and readJson serialization", async () => {
 
   // Cleanup
   try { unlinkSync(tmpFile); } catch {}
+});
+
+test("runner: verbFor maps primitive types correctly", () => {
+  assert.equal(verbFor("plugin"), "plugin");
+  assert.equal(verbFor("skill"), "skill");
+  assert.equal(verbFor("mcp"), "mcp");
+  assert.equal(verbFor("unknown"), "plugin");
+});
+
+test("reconciler: correctly merges discovered primitives and detects drift", () => {
+  const initialState = {
+    items: {
+      "plugin:old-plugin": {
+        type: "plugin",
+        id: "old-plugin",
+        detected: true,
+      },
+      "skill:removed-skill": {
+        type: "skill",
+        id: "removed-skill",
+        detected: true,
+      },
+    },
+  };
+
+  const probe = {
+    found: {
+      plugins: new Map([["old-plugin", { path: "/plugins/old-plugin" }], ["new-plugin", { path: "/plugins/new-plugin" }]]),
+      skills: new Map(),
+      mcps: new Map([["test-mcp", { config: { command: "node" } }]]),
+    },
+  };
+
+  const reconciled = reconcile(initialState, probe);
+
+  // Assertions
+  assert.equal(reconciled.items["plugin:old-plugin"].detected, true);
+  assert.equal(reconciled.items["skill:removed-skill"].detected, false); // drift detected
+  assert.ok(reconciled.items["plugin:new-plugin"]);
+  assert.equal(reconciled.items["plugin:new-plugin"].detected, true);
+  assert.ok(reconciled.items["mcp:test-mcp"]);
+  assert.equal(reconciled.items["mcp:test-mcp"].detected, true);
+  assert.deepEqual(reconciled.items["mcp:test-mcp"].config, { command: "node" });
 });
 
 test("command resolver: resolves installed system binaries", async () => {

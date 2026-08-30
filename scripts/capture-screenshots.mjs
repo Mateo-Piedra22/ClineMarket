@@ -2,11 +2,33 @@ import { spawn } from "node:child_process";
 import { writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveCommand } from "../lib/resolver.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const CDP_PORT = 9222;
+
+async function getChromeExecutable() {
+  if (process.env.CHROME_PATH && existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+  const candidates = [
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+    "chrome",
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+    const resolved = await resolveCommand(c);
+    if (resolved && existsSync(resolved)) return resolved;
+  }
+  return "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+}
 
 async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -52,7 +74,8 @@ async function capture() {
   console.log(`==> Target Server is verified active on: ${targetUrl}`);
   console.log("==> Spawning headless Chrome on CDP port", CDP_PORT);
 
-  const chrome = spawn(CHROME_PATH, [
+  const chromeExe = await getChromeExecutable();
+  const chrome = spawn(chromeExe, [
     `--remote-debugging-port=${CDP_PORT}`,
     "--headless=new",
     "--disable-gpu",

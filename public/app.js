@@ -50,7 +50,11 @@ async function postJson(url, body) {
 
 async function delJson(url) {
   const r = await fetch(url, { method: "DELETE" });
-  return r.json();
+  const txt = await r.text();
+  let data;
+  try { data = JSON.parse(txt); } catch { data = { error: txt }; }
+  if (!r.ok) throw new Error(data.error || `DELETE ${url} -> ${r.status}`);
+  return data;
 }
 
 const $ = (sel) => document.querySelector(sel);
@@ -221,7 +225,7 @@ function renderCard(entry, { reasons = null, score = null, matchPercent = null }
 
   card.innerHTML = `
     ${checkboxHtml}
-    <button class="card-watch ${watched ? "active" : ""}" data-watch="${entry.key}" title="${watched ? "Remove from watchlist" : "Add to watchlist"}" aria-label="${watched ? "Remove from watchlist" : "Add to watchlist"}">
+    <button class="card-watch ${watched ? "active" : ""}" data-watch="${escapeHtml(entry.key)}" title="${watched ? "Remove from watchlist" : "Add to watchlist"}" aria-label="${watched ? "Remove from watchlist" : "Add to watchlist"}">
       <svg class="ui-icon" aria-hidden="true"><use href="#${watched ? "icon-star-filled" : "icon-star-outline"}"></use></svg>
     </button>
     <div class="card-head">
@@ -1504,12 +1508,9 @@ function wireTabs() {
       return;
     }
 
-    if (!$("#helpModal").classList.contains("hidden")) {
-      handleModalTabTrap(e, $("#helpModal"));
-      return;
-    }
-    if (!$("#detailModal").classList.contains("hidden")) {
-      handleModalTabTrap(e, $("#detailModal"));
+    const activeModal = $(".modal:not(.hidden)");
+    if (activeModal) {
+      handleModalTabTrap(e, activeModal);
       return;
     }
 
@@ -1685,25 +1686,6 @@ function wireActions() {
   });
   $("#feedbackModal")?.addEventListener("click", (e) => {
     if (e.target.id === "feedbackModal") closeModal($("#feedbackModal"));
-  });
-
-  // Diagnostics copy button
-  $("#btnCopySysInfo")?.addEventListener("click", async () => {
-    try {
-      const h = await getJson("/api/health");
-      const text = JSON.stringify(h, null, 2);
-      await navigator.clipboard.writeText(text);
-      toast("Diagnostics Copied", "System diagnostics JSON copied to clipboard.", "success");
-    } catch (err) {
-      toast("Copy Failed", err.message, "error");
-    }
-  });
-
-  // Health refresh button
-  $("#btnHealthRefresh")?.addEventListener("click", async () => {
-    toast("Running Probes", "Re-evaluating system health...", "info");
-    await renderHealthTab();
-    toast("Probes Finished", "Diagnostics up to date.", "success");
   });
 
   // Update banner actions

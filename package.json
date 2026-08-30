@@ -9,6 +9,7 @@
   },
   "files": [
     "bin",
+    "lib",
     "public",
     "scripts",
     "docs",
@@ -23,6 +24,8 @@
     "refresh": "node scripts/refresh-catalog.mjs",
     "link": "npm link",
     "unlink": "npm unlink -g cline-marketplace",
+    "prepare": "node scripts/setup-hooks.mjs",
+    "docs:screenshots": "node scripts/capture-screenshots.mjs",
     "test:unit": "node --test scripts/unit-test.mjs",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test": "node --test scripts/unit-test.mjs && node scripts/smoke-test.mjs"

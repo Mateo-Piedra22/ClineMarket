@@ -2,10 +2,11 @@
 // Smoke test for Cline Marketplace backend and CLI integration.
 // Automatically connects to any active local server or starts a temporary instance.
 
+import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveCommand } from "./lib/resolve-command.mjs";
+import { resolveCommand } from "../lib/resolver.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -28,7 +29,7 @@ async function findActiveServerUrl() {
 
 async function getJson(url) {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url} -> ${r.status}`);
+  assert.strictEqual(r.ok, true, `GET ${url} should return 200 OK (received ${r.status})`);
   return r.json();
 }
 
@@ -67,59 +68,65 @@ async function main() {
 
     console.log("\n==> Testing /api/status");
     const status = await getJson(`${BASE}/api/status`);
-    console.log("  node:", status.node);
-    console.log("  platform:", status.platform);
-    console.log("  clinePath:", status.clinePath);
-    console.log("  installedCount:", status.installedCount);
+    assert.ok(status.node, "status.node must exist");
+    assert.ok(status.platform, "status.platform must exist");
+    assert.strictEqual(typeof status.installedCount, "number", "status.installedCount must be a number");
+    assert.ok(Array.isArray(status.storageRoots), "status.storageRoots must be an array");
+    console.log("  node:", status.node, "platform:", status.platform, "uptime:", status.uptime, "s");
 
     console.log("\n==> Testing /api/health");
     const health = await getJson(`${BASE}/api/health`);
-    console.log("  health ok:", health.ok);
+    assert.ok(Array.isArray(health.checks), "health.checks must be an array");
+    assert.ok(health.checks.length >= 4, "health.checks must have at least 4 items");
     for (const c of health.checks) {
+      assert.ok(c.name, "check must have a name");
       console.log(`  [${c.ok ? "✓" : "✗"}] ${c.name}: ${c.detail || c.error}`);
     }
 
     console.log("\n==> Testing /api/installed");
     const installed = await getJson(`${BASE}/api/installed`);
-    const installedCount = Object.keys(installed.items || {}).length;
-    const detectedCount = Object.values(installed.items || {}).filter((i) => i.detected).length;
+    assert.ok(installed && typeof installed.items === "object", "installed.items must be an object");
+    const installedCount = Object.keys(installed.items).length;
+    const detectedCount = Object.values(installed.items).filter((i) => i.detected).length;
     console.log(`  installed items: ${installedCount} total (${detectedCount} active on disk)`);
-
-    const sampleItems = Object.entries(installed.items || {}).slice(0, 8);
-    for (const [key, it] of sampleItems) {
-      console.log(`    - ${key} (source: ${it.source || "unknown"})`);
-    }
 
     console.log("\n==> Testing /api/catalog");
     const catalog = await getJson(`${BASE}/api/catalog`);
+    assert.ok(catalog.counts, "catalog.counts must exist");
+    assert.ok(catalog.counts.total > 0, "catalog total count must be greater than 0");
+    assert.ok(Array.isArray(catalog.tags), "catalog.tags must be an array");
+    assert.ok(Array.isArray(catalog.entries), "catalog.entries must be an array");
     console.log(`  catalog total: ${catalog.counts.total} (marketplace: ${catalog.counts.marketplace}, local: ${catalog.counts.local})`);
-    console.log(`  breakdown: ${catalog.counts.plugins} plugins, ${catalog.counts.skills} skills, ${catalog.counts.mcps} mcps`);
 
-    // Spot-check plugin:goal or local custom entries
-    const localGoal = catalog.entries.find((e) => e.id === "goal");
-    if (localGoal) {
-      console.log(`  spot check goal entry: OK (install command: ${localGoal.install?.command})`);
-    }
-    console.log(`  local custom entries synthesized: ${catalog.counts.local}`);
-
-    if (catalog.counts.local > 0) {
-      const sampleLocal = catalog.entries.find((e) => e.isLocal);
-      console.log(`  sample local entry: ${sampleLocal.key} -> ${sampleLocal.name}`);
-    }
+    console.log("\n==> Testing /api/context");
+    const context = await getJson(`${BASE}/api/context`);
+    assert.ok(context.cwd, "context.cwd must exist");
+    assert.ok(Array.isArray(context.languages), "context.languages must be an array");
+    assert.ok(Array.isArray(context.recommended), "context.recommended must be an array");
+    console.log(`  context languages: ${context.languages.join(", ") || "none"}, recommended count: ${context.recommended.length}`);
 
     console.log("\n==> Testing /api/stats");
     const stats = await getJson(`${BASE}/api/stats`);
-    console.log(`  stats total: ${stats.total}, top authors: ${stats.topAuthors?.length}, tags: ${stats.byTag?.length}`);
+    assert.strictEqual(typeof stats.total, "number", "stats.total must be a number");
+    assert.ok(Array.isArray(stats.topAuthors), "stats.topAuthors must be an array");
+    assert.ok(Array.isArray(stats.byTag), "stats.byTag must be an array");
+    assert.ok(stats.freshness, "stats.freshness must exist");
+    console.log(`  stats total: ${stats.total}, top authors: ${stats.topAuthors.length}, tags: ${stats.byTag.length}`);
 
     console.log("\n==> Testing /api/changelog");
     const changelog = await getJson(`${BASE}/api/changelog`);
-    console.log(`  changelog added: ${changelog.added?.length}, removed: ${changelog.removed?.length}, updated: ${changelog.updated?.length}`);
+    assert.ok(Array.isArray(changelog.added), "changelog.added must be an array");
+    assert.ok(Array.isArray(changelog.removed), "changelog.removed must be an array");
+    assert.ok(Array.isArray(changelog.updated), "changelog.updated must be an array");
+    console.log(`  changelog added: ${changelog.added.length}, removed: ${changelog.removed.length}, updated: ${changelog.updated.length}`);
 
     console.log("\n==> Testing /api/export");
     const exportData = await getJson(`${BASE}/api/export`);
-    console.log(`  export records: ${exportData.installed?.length}`);
+    assert.strictEqual(exportData.version, "1.0.0", "export version must be 1.0.0");
+    assert.ok(Array.isArray(exportData.installed), "exportData.installed must be an array");
+    console.log(`  export records: ${exportData.installed.length}`);
 
-    console.log("\n==> ALL SMOKE TESTS PASSED!\n");
+    console.log("\n==> ALL SMOKE TESTS PASSED WITH STRICT ASSERTIONS!\n");
   } finally {
     if (spawnedServer) {
       try { spawnedServer.kill(); } catch {}

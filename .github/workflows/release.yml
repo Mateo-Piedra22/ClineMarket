@@ -21,9 +21,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22.x'
+
+      - name: Install dependencies & Test Gate
+        run: |
+          npm ci
+          npm test
 
       - name: Determine tag
         id: tag_info
@@ -36,7 +46,7 @@ jobs:
 
       - name: Generate Release Notes & Changelog
         id: release_notes
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         with:
           script: |
             const tag = '${{ steps.tag_info.outputs.tag }}';

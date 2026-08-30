@@ -1,53 +1,58 @@
-# Auditoría Multicapa Cline Marketplace — 2026-08-30 — MODO PARALELO
+# Auditoría Multicapa Cline Marketplace — 2026-08-30 — MODO PARALELO (11 Subagents)
 
 ## Resumen Ejecutivo
 
-La auditoría exhaustiva de 10 capas sobre **Cline Marketplace** confirma que el sistema opera en un estado de **alta estabilidad, robustez defensiva y excelente rendimiento**. El control plane local, la interfaz gráfica bajo la especificación [`DESIGN.md`](../../DESIGN.md), los mecanismos de sincronización de catálogo y el conjunto de automatizaciones en GitHub Actions cumplen con estándares profesionales de ingeniería.
+Se ejecutó la auditoría exhaustiva y profunda de **Cline Marketplace** mediante el despacho simultáneo de **11 subagents especializados en paralelo**, abarcando desde la arquitectura del backend y persistencia JSON, hasta la seguridad local, el puente de ejecución de subprocesos, la calidad de código, pruebas y pipelines de CI/CD.
 
-Los mayores puntos fuertes radican en la **seguridad por diseño** (enlace estricto a loopback `127.0.0.1`, sanitización estricta de primitivas y paths, spawn seguro de subprocesos), la **resiliencia de almacenamiento atómico** y la **automatización de CI/CD con hook pre-push**. 
+El sistema presenta una base moderna, sólida y modular estructurada en ES Modules (Node 22), con enlace estricto a loopback (`127.0.0.1`), diseño visual de alta fidelidad alineado a `DESIGN.md` y soporte multiplataforma para Cline CLI v3.0.60+.
 
-Las principales oportunidades de mejora identificadas se centran en la **modularización de `server.js`** (que actualmente centraliza probes, reconciliador y rutas en un archivo de más de 1500 líneas), la incorporación de **tests unitarios granulares para validadores/sanitizers** y la adición de **rate limiting preventivo en mutaciones de CLI**.
+No obstante, la auditoría descubrió desalineaciones críticas entre endpoints del frontend y el router backend (`/api/context`, `/api/refresh`, `/api/mark/:type/:id`, `/api/watchlist`), bloqueos síncronos en el Event Loop por `execSync`, omisión de `"lib"` en `package.json` para distribución npm, y una suite de smoke tests carente de aserciones formales que enmascara fallos en CI.
 
 ---
 
 ## Tabla Maestra Consolidada
 
-| # | Capa | Sev | Hallazgo | Archivo:Línea | Fix Propuesto | Esfuerzo | Estado |
-|---|------|:---:|----------|---------------|---------------|:--------:|:------:|
-| 1 | Arquitectura | Baja | `server.js` contiene 1568 líneas centralizadas en un único archivo | [`server.js:1`](../../server.js) | Dividir en módulos `lib/probes.js`, `lib/routes.js`, `lib/reconciler.js` | Medio | ✅ Resuelto |
-| 2 | Testing | Media | Falta cobertura de tests unitarios puros para sanitizers y regexes | [`scripts/smoke-test.mjs:1`](../../scripts/smoke-test.mjs) | Agregar suite de tests unitarios para `sanitizePrimitiveId` y `sanitizeWorkspacePath` | Bajo | ✅ Resuelto |
-| 3 | Seguridad | Baja | Endpoints de instalación no tienen debounce/rate-limit en backend | [`server.js:804`](../../server.js) | Agregar middleware simple de encolado/rate-limit para `POST /api/install` | Bajo | ✅ Resuelto |
-| 4 | Performance | Baja | Relectura síncrona de `package.json` locales sin memoización por `mtime` | [`server.js:230`](../../server.js) | Cachear metadata de skills locales usando `mtime` del archivo | Bajo | ✅ Resuelto |
-| 5 | Persistencia | Baja | Posible colisión de escrituras en `safeWriteJson` ante llamadas concurrentes | [`server.js:130`](../../server.js) | Implementar cola secuencial de escritura para `data/*.json` | Bajo | ✅ Resuelto |
-| 6 | Frontend | Baja | Renderizado de tarjetas puede beneficiarse de skeleton loaders en carga inicial | [`public/app.js:537`](../../public/app.js) | Añadir 6 cards esqueleto con animación CSS de shimmer durante `reloadAll()` | Bajo | ✅ Resuelto |
-| 7 | DevOps | Informativo | El workflow `sync-catalog.yml` requiere token de repo para push | [`.github/workflows/sync-catalog.yml`](../../.github/workflows/sync-catalog.yml) | Utiliza `GITHUB_TOKEN` estándar configurado en el workflow | Bajo | ✅ Resuelto |
-| 8 | Código | Baja | Falta de anotaciones JSDoc en los handlers de Express para autocompletado | [`server.js:700`](../../server.js) | Añadir JSDoc types para `Request` y `Response` | Bajo | ✅ Resuelto |
+| # | Capa | Sev | Hallazgo | Archivo:línea | Fix Propuesto | Esfuerzo | Estado |
+|---|---|:---:|---|---|---|:---:|:---:|
+| 1 | Arquitectura | **Crítica** | Omisión de `lib/` en propiedad `files` de `package.json` (falla en `npx`) | [`package.json:10`](../../package.json) | Añadir `"lib"` al array `"files"` | 5 min | ⬜ Pendiente |
+| 2 | DevOps | **Crítica** | Action version tags inexistentes en workflows (`checkout@v7`, `setup-node@v7`, `github-script@v9`) | [`.github/workflows/ci.yml:21`](../../.github/workflows/ci.yml) | Ajustar a versiones oficiales estables (`checkout@v4`, `setup-node@v5`, `github-script@v7`) | 15 min | ⬜ Pendiente |
+| 3 | Testing | **Alta** | Smoke tests sin aserciones formales (`assert`), enmascarando fallos estructurales | [`scripts/smoke-test.mjs:68`](../../scripts/smoke-test.mjs) | Incorporar `node:assert/strict` en todos los endpoints probados | 1.5 h | ⬜ Pendiente |
+| 4 | Código / Ecosistema | **Alta** | Desalineación de endpoints REST entre UI y backend (`/api/context`, `/api/refresh`, `/api/mark/:type/:id`) | [`public/app.js:1109`](../../public/app.js) / [`lib/routes.js:407`](../../lib/routes.js) | Implementar `GET /api/context`, `POST /api/refresh`, `DELETE /api/mark/:type/:id` en `lib/routes.js` | 1.5 h | ⬜ Pendiente |
+| 5 | Seguridad / Perf | **Alta** | Bloqueo sincrónico del Event Loop con `execSync` en `/api/update/run` y `/api/health` | [`lib/routes.js:238,528`](../../lib/routes.js) | Migrar a `execFile` promisificado asíncrono con control de timeout | 30 min | ⬜ Pendiente |
+| 6 | Bridge CLI | **Alta** | Procesos huérfanos en Windows tras timeout debido a `proc.kill("SIGTERM")` sobre `shell: true` | [`lib/runner.js:78`](../../lib/runner.js) | Implementar terminación por árbol de procesos en Windows (`taskkill /pid ${proc.pid} /T /F`) | 25 min | ⬜ Pendiente |
+| 7 | Persistencia | **Alta** | Riesgo de sobreescritura destructiva de estado si `data/installed.json` sufre corrupción | [`lib/state.js:16`](../../lib/state.js) | Crear backup en cuarentena `.corrupt.<timestamp>` y rechazar sobreescritura vacía | 45 min | ⬜ Pendiente |
+| 8 | Seguridad | **Alta** | Ausencia de validación `Origin` / `Sec-Fetch-Site` para prevenir CSRF en daemon local | [`server.js:33`](../../server.js) | Middleware de validación de origen loopback en endpoints mutantes | 20 min | ⬜ Pendiente |
+| 9 | Frontend | **Media** | Íconos SVG ausentes en spritesheet (`#icon-package`, `#icon-sparkle`) | [`public/index.html:11`](../../public/index.html) | Declarar símbolos faltantes en el SVG oculto | 5 min | ⬜ Pendiente |
+| 10 | Performance | **Media** | I/O muerto: llamada innecesaria a `fsProbe()` en `/api/stats` | [`lib/routes.js:539`](../../lib/routes.js) | Eliminar invocación huérfana de `fsProbe` | 2 min | ⬜ Pendiente |
 
 ---
 
-## Scores por Capa (1–10)
+## Scores por Capa (1-10)
 
-- **Arquitectura**: 8.5 / 10 *(Monolito funcional bien estructurado, escalable mediante división modular)*
-- **Calidad de Código**: 8.8 / 10 *(JS moderno, manejo de errores robusto, sin dependencias innecesarias)*
-- **Seguridad**: 9.6 / 10 *(Loopback estricto, sanitización de IDs y paths, ejecución parametrizada de subprocesos)*
-- **Persistencia y Datos**: 9.2 / 10 *(Escrituras atómicas protegidas contra fallos de energía, guard de datos)*
-- **Performance**: 9.1 / 10 *(Filtrado en memoria < 2ms, baja sobrecarga de CPU y memoria)*
-- **Frontend y UI/UX**: 9.5 / 10 *(Apego estricto a DESIGN.md, micro-paleta integrada, accesibilidad a11y)*
-- **DevOps y CI/CD**: 9.6 / 10 *(Workflows multi-OS, pre-push hook con capturas automáticas, auto-release)*
-- **Testing y QA**: 8.7 / 10 *(Smoke tests autónomos probando toda la API y CLI de forma aislada)*
-- **Observabilidad**: 9.4 / 10 *(Logs coloreados ANSI, probes de salud en vivo, botón de copia de diagnóstico)*
-- **Ecosistema Cline/MCP**: 9.6 / 10 *(Detección multinivel de storage, heurísticas de proyectos, alcance por workspace)*
+- **Capa 1: Arquitectura & Patrones:** 8.2 / 10
+- **Capa 2: Calidad de Código & Tipado:** 6.8 / 10
+- **Capa 3: Seguridad & Auth:** 8.5 / 10
+- **Capa 4: Persistencia & Datos:** 8.5 / 10
+- **Capa 5: Performance & Optimización:** 7.2 / 10
+- **Capa 6: Frontend & UI/UX:** 8.8 / 10
+- **Capa 7: DevOps & CI/CD:** 7.8 / 10
+- **Capa 8: Testing & QA:** 4.5 / 10
+- **Capa 9: Observabilidad & Diagnósticos:** 9.4 / 10
+- **Capa 10: Ecosistema Cline & MCP:** 8.8 / 10
+- **Capa 11: Subprocess Bridge & CLI Runner:** 8.5 / 10
 
-**Promedio General: 9.2 / 10**
+**Promedio Global: 7.91 / 10**
 
 ---
 
-## Top 3 Quick Wins Cross-Capa
-1. **Tests Unitarios de Sanitización**: Agregar asserts directos para `sanitizePrimitiveId` con casos maliciosos (`../../etc/passwd`, caracteres de control, inyecciones) en `scripts/smoke-test.mjs`.
-2. **Cola de Escritura Atómica**: Secuencializar llamadas a `safeWriteJson` para evitar sobreescritura accidental si dos procesos concurrentes guardan estado simultáneamente.
-3. **Skeleton UI Shimmer**: Agregar animación de carga esqueleto en el catálogo para una experiencia de usuario instantánea al cambiar de workspace.
+## 3 Quick Wins Cross-Capa
+1. **Empaquetado y Distribución npm:** Agregar `"lib"` a la lista `"files"` en `package.json` y corregir action tags a `@v4`/`@v5`/`@v7` en `.github/workflows/*.yml`.
+2. **Alineación de Endpoints REST en `lib/routes.js`:** Implementar `GET /api/context`, `POST /api/refresh`, `DELETE /api/mark/:type/:id` y `DELETE /api/watchlist/:type/:id`.
+3. **Eliminación de I/O bloqueante y redundante:** Eliminar `fsProbe()` en `/api/stats` y migrar `execSync` a `execFileP` asíncrono.
 
-## Top 3 Deudas Críticas
-1. **Modularización de `server.js`**: Separar las más de 1500 líneas en controladores `lib/` específicos para mantener la mantenibilidad a largo plazo.
-2. **Rate Limiting / Lock de Subproceso `cline`**: Prevenir que múltiples comandos de instalación de plugins se ejecuten en paralelo saturando los bloqueos internos de la CLI de Cline.
-3. **Manejo de Errores Específico de Permisos de Windows**: Capturar excepciones de EPERM/EACCES al acceder a carpetas restringidas de AppData.
+---
+
+## 3 Deudas Críticas
+1. **Blindaje de Smoke Tests con Aserciones Estrictas:** Reemplazar logs informativos por `node:assert/strict` para evitar falsos positivos en CI.
+2. **Manejo de Árbol de Procesos en Windows (`taskkill /T /F`):** Evitar subprocesos huérfanos ante timeouts de CLI.
+3. **Protección Anti-Corrupción en Persistencia:** Backup automático ante fallos de parseo JSON para preservar historial de instalación.

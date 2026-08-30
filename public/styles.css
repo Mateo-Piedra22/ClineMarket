@@ -47,6 +47,15 @@
   --type-skill: var(--color-cobalt-blue);
   --type-mcp: var(--color-schoolbus-yellow);
 
+  /* Aliases & Compatibility */
+  --cline-cyan: var(--color-acid-lime);
+  --cline-blue-glow: rgba(122, 120, 255, 0.2);
+  --border-glow: rgba(199, 255, 105, 0.3);
+  --fg-muted: #8e8e8e;
+  --success: var(--color-toxic-green);
+  --danger: #ff4d4d;
+  --warn: var(--color-schoolbus-yellow);
+
   /* Transitions */
   --trans-fast: 140ms ease;
   --trans-smooth: 220ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -1286,6 +1295,48 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 10px;
+}
+.toast.error {
+  border-color: var(--danger);
+}
+.toast.warn {
+  border-color: var(--warn);
+}
+.toast.success {
+  border-color: var(--color-toxic-green);
+}
+
+.install-output {
+  background: #0d0d0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #c7ff69;
+  max-height: 240px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin-top: 14px;
+}
+.install-output.error {
+  color: #ff6d6d;
+  border-color: rgba(255, 109, 109, 0.4);
+}
+
+.changelog-item {
+  background: var(--surface-charcoal-900);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+}
+.bundle-items-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 /* ---- Responsive ---------------------------------------------------------- */
