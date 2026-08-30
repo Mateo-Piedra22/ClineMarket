@@ -10,7 +10,7 @@ A developer-grade, offline-first local web application and CLI to browse, instal
 [![Express](https://img.shields.io/badge/Express-4.x-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
 [![JavaScript](https://img.shields.io/badge/ES_Modules-Vanilla_JS-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![Cline CLI](https://img.shields.io/badge/Cline_CLI-v3.x-1876F2?style=for-the-badge&logo=robot&logoColor=white)](https://docs.cline.bot)
-[![GitHub CLI](https://img.shields.io/badge/GitHub_CLI-gh-181717?style=for-the-badge&logo=github&logoColor=white)](https://cli.github.com)
+[![GitHub Actions](https://img.shields.io/badge/CI-Passing-brightgreen?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/Mateo-Piedra22/ClineMarket/actions)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue?style=for-the-badge)](LICENSE)
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-None-10b981?style=for-the-badge)](#security-and-guard-rails)
 
@@ -26,9 +26,10 @@ A developer-grade, offline-first local web application and CLI to browse, instal
 - [Core Features](#core-features)
 - [Quick Start](#quick-start)
 - [Command Line Interface](#command-line-interface)
+- [Repository and CI/CD Automations](#repository-and-cicd-automations)
 - [REST API Reference](#rest-api-reference)
 - [Workspace Context and Heuristics](#workspace-context-and-heuristics)
-- [Security and Guard Rails](#security-and-guard-rails)
+- [Security Audit and Threat Model](#security-audit-and-threat-model)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting Matrix](#troubleshooting-matrix)
 - [Contributing and Development](#contributing-and-development)
@@ -53,13 +54,13 @@ The official [Cline Marketplace](https://cline.github.io/marketplace) provides a
 
 ### Catalog Browser View
 
-Full catalog interface showing 200+ primitives, multi-token search, type chips, state flags, and real-time status strip.
+Full catalog interface showing 200+ primitives, multi-token search, type chips, state flags, and real-time status strip adhering strictly to the Navigate design specification (`DESIGN.md`).
 
 <img width="1600" alt="Catalog Browser View" src="docs/screenshot-catalog.png" />
 
 ### Recommended Workspace Toolchains
 
-Auto-detects project tech stack, Git remotes, and dependency trees to rank primitives and curated toolchain bundles.
+Auto-detects project tech stack, Git remotes, and dependency trees to rank primitives and curated toolchain bundles (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*).
 
 <img width="1600" alt="Recommended Toolchains View" src="docs/screenshot-recommended.png" />
 
@@ -71,7 +72,7 @@ Deep view of any primitive showing official install commands, environment variab
 
 ### System Statistics and Diagnostics
 
-Breakdown by primitive type, author metrics, commit freshness distribution, and local installation coverage.
+Breakdown by primitive type, top author distributions, commit freshness histograms, and local installation coverage.
 
 <img width="1600" alt="Stats and Diagnostics View" src="docs/screenshot-stats.png" />
 
@@ -124,7 +125,7 @@ flowchart TD
 
 | Area | Functionality |
 | :--- | :--- |
-| **Catalog Browser** | Real-time search across 200+ primitives with multi-token filtering by keyword, author, license, tags, and state flags. |
+| **Catalog Browser** | Real-time search across 250+ primitives with multi-token filtering by keyword, author, license, tags, and state flags. |
 | **Bulk Mode** | Multi-select primitives across search results to batch-install, batch-uninstall, or add to your watchlist in a single operation. |
 | **Curated Toolchains** | Workspace toolchains (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*) installable with one click. |
 | **Workspace Matcher** | Deep heuristic analysis of `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Git remotes, and project files to score catalog entries. |
@@ -137,6 +138,16 @@ flowchart TD
 ---
 
 ## Quick Start
+
+### One-Shot Zero Configuration (NPX)
+
+Run the marketplace instantly with zero local installation:
+
+```bash
+npx cline-marketplace
+```
+
+The runner automatically checks runtime dependencies, fetches the catalog if missing, binds to a free port, and opens your default browser.
 
 ### Running Locally from Source
 
@@ -165,8 +176,6 @@ npm link
 cline-marketplace
 ```
 
-Navigate to `http://127.0.0.1:5173` in your web browser.
-
 ---
 
 ## Command Line Interface
@@ -183,6 +192,9 @@ cline-marketplace --no-open
 # Specify custom port override
 cline-marketplace --port 5200
 
+# Check for updates and pull latest changes from GitHub
+cline-marketplace update
+
 # Full catalog synchronization with GitHub commit timestamps
 cline-marketplace refresh
 
@@ -195,6 +207,18 @@ cline-marketplace help
 
 ---
 
+## Repository and CI/CD Automations
+
+| Workflow | Path | Trigger | Purpose |
+| :--- | :--- | :--- | :--- |
+| **CI & Quality Gate** | `.github/workflows/ci.yml` | Push & PR to `main` | Matrix tests across Node.js 18.x, 20.x, 22.x on Ubuntu, Windows, and macOS. |
+| **Upstream Sync Cron** | `.github/workflows/sync-catalog.yml` | Every 6 hours / Manual | Automatically downloads upstream `cline/marketplace` catalog, detects new primitives, and commits updates with `[skip ci]`. |
+| **Release Automation** | `.github/workflows/release.yml` | Tag push `v*.*.*` / Manual | Auto-generates GitHub Releases, changelogs, and release assets. |
+| **CodeQL Security** | `.github/workflows/codeql.yml` | Push, PR & Weekly Cron | Static Application Security Testing (SAST) for JavaScript code vulnerabilities. |
+| **Dependabot** | `.github/dependabot.yml` | Weekly | Monitors and creates PRs for outdated npm packages and GitHub Actions. |
+
+---
+
 ## REST API Reference
 
 The server exposes a REST API on `http://127.0.0.1:5173`:
@@ -204,6 +228,7 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 | `GET` | `/api/catalog` | Returns the enriched catalog with local state, commit dates, and local custom entries. | None |
 | `GET` | `/api/installed` | Executes a filesystem probe across `~/.cline` and VS Code configs, returning reconciled state. | None |
 | `GET` | `/api/status` | Returns runtime health, Node version, detected `cline` path, and storage roots. | None |
+| `GET` | `/api/version` | Returns current package version and app metadata. | None |
 | `GET` | `/api/context` | Runs stack heuristics against a workspace directory and returns ranked recommendations. | `?cwd=/path/to/project` |
 | `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal"}` |
 | `POST` | `/api/uninstall` | Invokes `cline <type> uninstall <id>` and updates local registry records. | `{"type": "plugin", "id": "goal"}` |
@@ -248,22 +273,23 @@ $$\text{Affinity Score} = (6 \times \text{TagMatches}) + (8 \times \text{Framewo
 
 ---
 
-## Security and Guard Rails
+## Security Audit and Threat Model
 
-1. **Input Sanitization**:
-   - Primitive `type` is constrained to `plugin`, `skill`, or `mcp`.
-   - Primitive `id` is validated against `/^[a-zA-Z0-9@_.-]+$/`, rejecting path traversals (`..`), slashes, and control characters.
-2. **Command Injection Prevention**:
-   - Subprocesses are spawned with explicit argument arrays (`child_process.spawn(exe, args, { windowsHide: true })`), preventing shell interpolation.
+1. **Input Sanitization & Path Traversal Guards**:
+   - Primitive `type` is strictly checked against the set `{"plugin", "skill", "mcp"}`.
+   - Primitive `id` is validated against `/^[a-zA-Z0-9@_.-]+$/`, explicitly blocking path traversal sequences (`..`), forward/backward slashes, and control characters.
+   - Workspace directories supplied via `?cwd=` are normalized and verified with `statSync.isDirectory()` before invocation.
+2. **Subprocess Isolation**:
+   - Subprocesses are executed with argument vectors (`child_process.spawn(exe, args, { windowsHide: true })`) without shell evaluation, eliminating command injection risks.
 3. **Atomic File Persistence**:
-   - All state modifications (`installed.json`, `watchlist.json`, `context-cache.json`) write to temporary files before executing atomic renames, preventing corruption during abrupt shutdowns.
-4. **HTTP Security Headers**:
+   - All state modifications (`installed.json`, `watchlist.json`, `context-cache.json`) write to temporary files before executing atomic renames, preventing file corruption or race conditions.
+4. **Network & HTTP Security Headers**:
    - `X-Content-Type-Options: nosniff`
    - `X-Frame-Options: SAMEORIGIN`
    - `Referrer-Policy: strict-origin-when-cross-origin`
    - `X-XSS-Protection: 1; mode=block`
    - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-   - Default server binding is restricted to `127.0.0.1` (localhost).
+   - Server strictly binds to loopback interface `127.0.0.1`.
 
 ---
 
@@ -301,7 +327,7 @@ The following environment variables can be set:
 npm run dev
 
 # Run automated smoke test suite
-node scripts/smoke-test.mjs
+npm test
 
 # Reset local data cache
 rm -rf data/ && npm run refresh

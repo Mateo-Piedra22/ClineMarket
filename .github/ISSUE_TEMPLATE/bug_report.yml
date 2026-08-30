@@ -1,0 +1,41 @@
+name: Bug Report
+description: File a bug report or error encountered in Cline Marketplace
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please fill out the sections below.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment Info
+      description: Node version, OS, and Cline CLI version (e.g., Node 22, Windows 11, Cline 3.0.60)
+      placeholder: Node v22.17.0, Win32 x64, Cline v3.0.60
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step by step instructions to trigger the issue
+      placeholder: |
+        1. Run `cline-marketplace`
+        2. Click on 'Install' for plugin XYZ
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal Logs / Error Output
+      description: Paste any terminal logs or console output
+      render: shell
