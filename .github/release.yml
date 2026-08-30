@@ -1,26 +1,55 @@
-changelog:
-  categories:
-    - title: "🚀 Features & Enhancements"
-      labels:
-        - "enhancement"
-        - "feature"
-        - "scope: ui"
-        - "scope: cli"
-    - title: "🐛 Bug Fixes"
-      labels:
-        - "bug"
-        - "fix"
-    - title: "🔒 Security & Hardening"
-      labels:
-        - "scope: security"
-        - "security"
-    - title: "📦 Dependency Updates"
-      labels:
-        - "dependencies"
-    - title: "📝 Documentation & Governance"
-      labels:
-        - "documentation"
-    - title: "⚙️ CI/CD & Automations"
-      labels:
-        - "github_actions"
-        - "automation: cron"
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/Mateo-Piedra22/ClineMarket/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+categories:
+  - title: "🚀 Features & Enhancements"
+    labels:
+      - "enhancement"
+      - "feature"
+      - "scope: ui"
+      - "scope: cli"
+  - title: "🐛 Bug Fixes"
+    labels:
+      - "bug"
+      - "fix"
+  - title: "🔒 Security & Hardening"
+    labels:
+      - "scope: security"
+      - "security"
+  - title: "📦 Dependency Updates"
+    labels:
+      - "dependencies"
+  - title: "📝 Documentation & Governance"
+    labels:
+      - "documentation"
+  - title: "⚙️ CI/CD & Automations"
+    labels:
+      - "github_actions"
+      - "automation: cron"
+
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
+
+version-resolver:
+  major:
+    labels:
+      - "major"
+      - "breaking"
+  minor:
+    labels:
+      - "minor"
+      - "enhancement"
+      - "feature"
+  patch:
+    labels:
+      - "patch"
+      - "bug"
+      - "fix"
+      - "dependencies"
+  default: patch
