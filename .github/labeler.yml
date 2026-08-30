@@ -1,0 +1,23 @@
+"scope: ui":
+  - changed-files:
+      - any-glob-to-any-file: "public/**/*"
+
+"scope: server":
+  - changed-files:
+      - any-glob-to-any-file: ["server.js", "data/**/*"]
+
+"scope: cli":
+  - changed-files:
+      - any-glob-to-any-file: ["bin/**/*", "scripts/lib/**/*"]
+
+"scope: security":
+  - changed-files:
+      - any-glob-to-any-file: ["SECURITY.md", ".github/workflows/codeql.yml"]
+
+"documentation":
+  - changed-files:
+      - any-glob-to-any-file: ["*.md", "docs/**/*", "CITATION.cff"]
+
+"github_actions":
+  - changed-files:
+      - any-glob-to-any-file: ".github/workflows/**/*"

@@ -1,0 +1,26 @@
+changelog:
+  categories:
+    - title: "🚀 Features & Enhancements"
+      labels:
+        - "enhancement"
+        - "feature"
+        - "scope: ui"
+        - "scope: cli"
+    - title: "🐛 Bug Fixes"
+      labels:
+        - "bug"
+        - "fix"
+    - title: "🔒 Security & Hardening"
+      labels:
+        - "scope: security"
+        - "security"
+    - title: "📦 Dependency Updates"
+      labels:
+        - "dependencies"
+    - title: "📝 Documentation & Governance"
+      labels:
+        - "documentation"
+    - title: "⚙️ CI/CD & Automations"
+      labels:
+        - "github_actions"
+        - "automation: cron"

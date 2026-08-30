@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use Cline Marketplace Local Browser in your research or project, please cite it as below."
+title: "Cline Marketplace: Local Browser & Control Plane for Cline Primitives"
+authors:
+  - family-names: "Piedra"
+    given-names: "Mateo"
+    alias: "Mateo-Piedra22"
+repository-code: "https://github.com/Mateo-Piedra22/ClineMarket"
+url: "https://github.com/Mateo-Piedra22/ClineMarket"
+license: "Apache-2.0"
+version: "1.0.0"
+date-released: "2026-08-30"
+keywords:
+  - "cline"
+  - "ai-agents"
+  - "mcp"
+  - "model-context-protocol"
+  - "marketplace"
+  - "developer-tools"

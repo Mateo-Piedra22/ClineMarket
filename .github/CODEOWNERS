@@ -1,0 +1,8 @@
+# Code Owners for Cline Marketplace
+# Default owners for everything in the repo
+* @Mateo-Piedra22
+
+# Workflows and Security
+/.github/ @Mateo-Piedra22
+/server.js @Mateo-Piedra22
+/bin/ @Mateo-Piedra22

@@ -70,11 +70,17 @@ Deep view of any primitive showing official install commands, environment variab
 
 <img width="1600" alt="Detail Modal View" src="docs/screenshot-detail.png" />
 
-### System Statistics and Diagnostics
+### System Statistics
 
 Breakdown by primitive type, top author distributions, commit freshness histograms, and local installation coverage.
 
-<img width="1600" alt="Stats and Diagnostics View" src="docs/screenshot-stats.png" />
+<img width="1600" alt="Stats View" src="docs/screenshot-stats.png" />
+
+### System & CLI Health Diagnostics
+
+Comprehensive runtime probes across Node runtime, Cline CLI, GitHub CLI, local directories, and catalog freshness.
+
+<img width="1600" alt="Health Diagnostics View" src="docs/screenshot-health.png" />
 
 ---
 

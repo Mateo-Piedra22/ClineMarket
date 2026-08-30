@@ -1,0 +1,23 @@
+name: Question & Support
+description: Ask a question about using Cline Marketplace
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about installing primitives, configuring paths, or using features? Let us know!
+  - type: textarea
+    id: question
+    attributes:
+      label: What is your question?
+      description: Provide clear details about what you are trying to do.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant Context
+      description: Operating System, Node version, or CLI versions if relevant.
+    validations:
+      required: false

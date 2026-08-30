@@ -730,23 +730,45 @@ async function renderChangelogTab() {
   }
 }
 
+const PROBE_TITLES = {
+  node: "Node.js Runtime",
+  cline: "Cline CLI Tool",
+  gh: "GitHub CLI Tool",
+  "cline-storage": "Local Primitive Storage",
+  catalog: "Marketplace Catalog",
+  metadata: "Commit Metadata Cache",
+};
+
 async function renderHealthTab() {
   try {
     const h = await getJson("/api/health");
     $("#healthList").innerHTML = h.checks.map((c) => {
       const cls = c.ok ? "ok" : "bad";
       const iconSvg = c.ok
-        ? `<svg class="ui-icon" style="color:var(--success);width:16px;height:16px" aria-hidden="true"><use href="#icon-check"></use></svg>`
-        : `<svg class="ui-icon" style="color:var(--danger);width:16px;height:16px" aria-hidden="true"><use href="#icon-close"></use></svg>`;
+        ? `<svg class="ui-icon" style="width:16px;height:16px" aria-hidden="true"><use href="#icon-check"></use></svg>`
+        : `<svg class="ui-icon" style="width:16px;height:16px" aria-hidden="true"><use href="#icon-close"></use></svg>`;
+      const title = PROBE_TITLES[c.name] || c.name;
+      
+      let detailText = escapeHtml(String(c.detail || c.error || ""));
+      if (c.counts) {
+        detailText += ` · ${c.counts.plugins} plugins, ${c.counts.skills} skills, ${c.counts.mcps} mcps`;
+      }
+      
+      const badgeText = c.ok ? "VERIFIED" : "ISSUE";
+      const badgeClass = c.ok ? "verified" : "drift";
+
       return `<div class="health-item ${cls}">
-        <div style="width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,0.04);flex-shrink:0">
-          ${iconSvg}
+        <div class="health-item-head">
+          <div class="health-item-title">
+            <div class="health-icon-box">${iconSvg}</div>
+            <div>
+              <div class="name">${escapeHtml(title)}</div>
+              ${c.path ? `<code style="font-size:10px;color:#777">${escapeHtml(c.path)}</code>` : ""}
+            </div>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
         </div>
-        <div>
-          <div class="name">${escapeHtml(c.name)}</div>
-          <div class="detail">${escapeHtml(String(c.detail || c.error || ""))}${c.version ? ` · v${escapeHtml(c.version)}` : ""}${c.counts ? ` · plugins ${c.counts.plugins}, skills ${c.counts.skills}, mcps ${c.counts.mcps}` : ""}</div>
-        </div>
-        <span class="badge ${c.ok ? "verified" : "drift"}">${c.ok ? "verified" : "issue"}</span>
+        <div class="detail">${detailText}</div>
       </div>`;
     }).join("");
 
@@ -756,7 +778,7 @@ async function renderHealthTab() {
       hpill.className = "pill " + (h.ok ? "ok" : "bad");
     }
   } catch (err) {
-    $("#healthList").innerHTML = `<div class="health-item bad"><div style="width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:var(--danger-bg);color:var(--danger)"><svg class="ui-icon" aria-hidden="true"><use href="#icon-close"></use></svg></div><div><div class="name">Health Verification Failed</div><div class="detail">${escapeHtml(err.message)}</div></div></div>`;
+    $("#healthList").innerHTML = `<div class="health-item bad"><div class="name">Diagnostics Probe Failed</div><div class="detail">${escapeHtml(err.message)}</div></div>`;
   }
 }
 
@@ -1004,13 +1026,18 @@ async function runInstall(entry) {
   const btn = $("#btnInstall");
   if (btn) { btn.disabled = true; btn.textContent = "Installing…"; }
   try {
-    const res = await postJson("/api/install", { type: entry.type, id: entry.id });
+    const res = await postJson("/api/install", {
+      type: entry.type,
+      id: entry.id,
+      scope: state.installScope || "global",
+      cwd: state.contextCwd || "",
+    });
     showInstallOutput(
       `$ ${res.command}\n[exit ${res.exitCode}]\n` +
       (res.stdout || "") + (res.stderr ? `\n--- stderr ---\n${res.stderr}` : ""),
       !res.ok);
     toast(res.ok ? "Installed" : "Install finished with errors",
-      `${entry.name} · exit ${res.exitCode}`,
+      `${entry.name} · exit ${res.exitCode} (${state.installScope === "workspace" ? "project" : "global"})`,
       res.ok ? "success" : "error");
     await refreshInstalled();
     if (!$("#detailModal").classList.contains("hidden")) {
@@ -1030,7 +1057,12 @@ async function runUninstall(entry) {
   const btn = $("#btnUninstall");
   if (btn) { btn.disabled = true; btn.textContent = "Uninstalling…"; }
   try {
-    const res = await postJson("/api/uninstall", { type: entry.type, id: entry.id });
+    const res = await postJson("/api/uninstall", {
+      type: entry.type,
+      id: entry.id,
+      scope: state.installScope || "global",
+      cwd: state.contextCwd || "",
+    });
     showInstallOutput(
       `$ ${res.command}\n[exit ${res.exitCode}]\n` +
       (res.stdout || "") + (res.stderr ? `\n--- stderr ---\n${res.stderr}` : ""),
@@ -1144,7 +1176,33 @@ function toast(title, body, kind = "info") {
 
 // ---- Refresh + Data Loaders ------------------------------------------------
 
+function renderSkeletons() {
+  const grid = resultsEl();
+  if (!grid) return;
+  grid.innerHTML = "";
+  for (let i = 0; i < 6; i++) {
+    const card = document.createElement("div");
+    card.className = "skeleton-card";
+    card.innerHTML = `
+      <div style="display:flex;gap:14px;align-items:center;">
+        <div class="skeleton-box skeleton-icon"></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+          <div class="skeleton-box skeleton-title"></div>
+          <div class="skeleton-box skeleton-line short"></div>
+        </div>
+      </div>
+      <div class="skeleton-box skeleton-line"></div>
+      <div class="skeleton-box skeleton-line short"></div>
+      <div class="skeleton-box skeleton-tags"></div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
 async function loadCatalog() {
+  if (!state.catalog || !state.catalog.entries?.length) {
+    renderSkeletons();
+  }
   const cat = await getJson("/api/catalog");
   state.catalog = cat;
   updateCounts();
@@ -1288,11 +1346,19 @@ function wireFilters() {
   });
 
   $("#contextCwd").value = state.contextCwd;
-  $("#contextCwd").addEventListener("change", (e) => {
+  $("#contextCwd").addEventListener("change", async (e) => {
     state.contextCwd = e.target.value.trim();
     localStorage.setItem("clineMarketplace.contextCwd", state.contextCwd);
+    if (state.contextCwd) {
+      try {
+        await postJson("/api/workspaces/recent", { path: state.contextCwd });
+      } catch {}
+    }
     refreshContext();
+    refreshInstalled();
   });
+
+  wireWorkspaceScope();
 
   $("#activeFiltersBar")?.addEventListener("click", (e) => {
     const clearTarget = e.target.closest("[data-clear]");
@@ -1329,6 +1395,69 @@ function wireFilters() {
   $("#btnClearAllFilters")?.addEventListener("click", resetAllFilters);
   $("#btnEmptyClearFilters")?.addEventListener("click", resetAllFilters);
   $("#btnGoToCatalog")?.addEventListener("click", () => switchTab("catalog"));
+}
+
+async function wireWorkspaceScope() {
+  const scopeGlobal = $("#scopeGlobalBtn");
+  const scopeWorkspace = $("#scopeWorkspaceBtn");
+  const wsSelect = $("#recentWorkspacesSelect");
+  const contextCwdInput = $("#contextCwd");
+
+  state.installScope = localStorage.getItem("clineMarketplace.installScope") || "global";
+  updateScopeButtons();
+
+  function updateScopeButtons() {
+    if (scopeGlobal) scopeGlobal.classList.toggle("active", state.installScope === "global");
+    if (scopeWorkspace) scopeWorkspace.classList.toggle("active", state.installScope === "workspace");
+  }
+
+  scopeGlobal?.addEventListener("click", () => {
+    state.installScope = "global";
+    localStorage.setItem("clineMarketplace.installScope", "global");
+    updateScopeButtons();
+    toast("Scope changed", "Primitives will install globally into your home storage", "info");
+  });
+
+  scopeWorkspace?.addEventListener("click", () => {
+    state.installScope = "workspace";
+    localStorage.setItem("clineMarketplace.installScope", "workspace");
+    updateScopeButtons();
+    const ws = state.contextCwd || state.context?.cwd || "current project";
+    toast("Scope changed", `Primitives will install for project workspace: ${ws}`, "info");
+  });
+
+  try {
+    const s = await getJson("/api/settings");
+    if (s && Array.isArray(s.recentWorkspaces)) {
+      renderRecentWorkspaces(s.recentWorkspaces);
+    }
+  } catch {}
+
+  function renderRecentWorkspaces(workspaces) {
+    if (!wsSelect) return;
+    wsSelect.innerHTML = '<option value="">Recent Workspaces (Select to Switch)</option>';
+    for (const w of workspaces) {
+      const opt = document.createElement("option");
+      opt.value = w.path;
+      opt.textContent = `${w.name} (${w.path})`;
+      if (w.path === state.contextCwd) opt.selected = true;
+      wsSelect.appendChild(opt);
+    }
+  }
+
+  wsSelect?.addEventListener("change", async (e) => {
+    const p = e.target.value;
+    if (!p) return;
+    state.contextCwd = p;
+    if (contextCwdInput) contextCwdInput.value = p;
+    localStorage.setItem("clineMarketplace.contextCwd", p);
+    try {
+      await postJson("/api/workspaces/recent", { path: p });
+    } catch {}
+    refreshContext();
+    refreshInstalled();
+    toast("Workspace switched", p, "success");
+  });
 }
 
 function wireTabs() {
@@ -1537,6 +1666,60 @@ function wireActions() {
     }
   });
 
+  // Feedback handlers
+  $("#btnFeedback")?.addEventListener("click", () => {
+    openModal($("#feedbackModal"));
+  });
+  $("#feedbackClose")?.addEventListener("click", () => {
+    closeModal($("#feedbackModal"));
+  });
+  $("#btnFeedbackDone")?.addEventListener("click", () => {
+    closeModal($("#feedbackModal"));
+  });
+  $("#feedbackModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "feedbackModal") closeModal($("#feedbackModal"));
+  });
+
+  // Diagnostics copy button
+  $("#btnCopySysInfo")?.addEventListener("click", async () => {
+    try {
+      const h = await getJson("/api/health");
+      const text = JSON.stringify(h, null, 2);
+      await navigator.clipboard.writeText(text);
+      toast("Diagnostics Copied", "System diagnostics JSON copied to clipboard.", "success");
+    } catch (err) {
+      toast("Copy Failed", err.message, "error");
+    }
+  });
+
+  // Health refresh button
+  $("#btnHealthRefresh")?.addEventListener("click", async () => {
+    toast("Running Probes", "Re-evaluating system health...", "info");
+    await renderHealthTab();
+    toast("Probes Finished", "Diagnostics up to date.", "success");
+  });
+
+  // Update banner actions
+  $("#btnDismissUpdate")?.addEventListener("click", () => {
+    $("#updateBanner")?.classList.add("hidden");
+  });
+  $("#btnRunUpdate")?.addEventListener("click", async () => {
+    const btn = $("#btnRunUpdate");
+    btn.disabled = true;
+    btn.textContent = "Updating…";
+    toast("Updating", "Pulling latest release and running npm install...", "info");
+    try {
+      const res = await postJson("/api/update/run", {});
+      toast("Updated Successfully", res.message || "Update finished! Please restart server.", "success");
+      $("#updateBanner")?.classList.add("hidden");
+    } catch (err) {
+      toast("Update Error", err.message || "Failed to update automatically. Try running git pull.", "error");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Update Now";
+    }
+  });
+
   // Modal close handlers
   $("#detailClose")?.addEventListener("click", closeDetail);
   $("#detailModal")?.addEventListener("click", (e) => {
@@ -1557,15 +1740,15 @@ function wireActions() {
 
 async function checkUpdate() {
   try {
-    const res = await fetch("https://raw.githubusercontent.com/Mateo-Piedra22/ClineMarket/main/package.json", {
-      signal: AbortSignal.timeout(3500),
-    });
-    if (res.ok) {
-      const remote = await res.json();
-      const local = await getJson("/api/version");
-      if (remote.version && local.version && remote.version !== local.version) {
-        toast(`Update Available: v${remote.version}`, "Run `cline-marketplace update` to pull the latest version.", "warn");
+    const res = await getJson("/api/update/check");
+    if (res.hasUpdate) {
+      const banner = $("#updateBanner");
+      const bannerText = $("#updateBannerText");
+      if (banner && bannerText) {
+        bannerText.textContent = `A new version (v${res.remoteVersion}) is available on GitHub (current: v${res.currentVersion}).`;
+        banner.classList.remove("hidden");
       }
+      toast(`Update Available: v${res.remoteVersion}`, "Click 'Update Now' in the top banner or run `cline-marketplace update`.", "warn");
     }
   } catch {}
 }

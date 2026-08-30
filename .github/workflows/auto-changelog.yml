@@ -1,0 +1,39 @@
+name: "Auto-Changelog & Release Drafter"
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  draft_release:
+    name: Draft Latest Release Notes
+    runs-on: ubuntu-latest
+    if: github.repository == 'Mateo-Piedra22/ClineMarket'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read Current Package Version
+        id: pkg_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate or Update Release Notes
+        uses: release-drafter/release-drafter@v6
+        with:
+          config-name: release.yml
+          tag: ${{ steps.pkg_version.outputs.version }}
+          name: "Cline Marketplace ${{ steps.pkg_version.outputs.version }}"
+          version: ${{ steps.pkg_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

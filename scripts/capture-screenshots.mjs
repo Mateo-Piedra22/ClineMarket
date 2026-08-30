@@ -111,7 +111,24 @@ async function capture() {
     writeFileSync("docs/screenshot-stats.png", Buffer.from(statsShot.data, "base64"));
     console.log("Saved docs/screenshot-stats.png");
 
-    // 4. Switch back to Catalog and Open Detail Modal
+    // 4. Switch to Health Tab
+    console.log("Switching to Health tab...");
+    await send("Runtime.evaluate", {
+      expression: `document.querySelector('.tab[data-tab="health"]').click();`,
+    });
+    for (let i = 0; i < 20; i++) {
+      const evalRes = await send("Runtime.evaluate", {
+        expression: `Boolean(document.querySelector('#healthList .health-item'))`,
+      });
+      if (evalRes?.result?.value === true) break;
+      await sleep(300);
+    }
+    await sleep(600);
+    const healthShot = await send("Page.captureScreenshot", { format: "png" });
+    writeFileSync("docs/screenshot-health.png", Buffer.from(healthShot.data, "base64"));
+    console.log("Saved docs/screenshot-health.png");
+
+    // 5. Switch back to Catalog and Open Detail Modal
     console.log("Opening Detail Modal...");
     await send("Runtime.evaluate", {
       expression: `
