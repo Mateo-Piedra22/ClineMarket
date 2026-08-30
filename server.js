@@ -12,7 +12,7 @@ import { createApiRouter } from "./lib/routes.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
-const dataDir = join(root, "data");
+const dataDir = process.env.CLINEMARKET_DATA_DIR || process.env.DATA_DIR || join(root, "data");
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true });
 }
@@ -51,7 +51,7 @@ app.use((req, res, next) => {
     const secFetchSite = req.headers["sec-fetch-site"];
 
     if (secFetchSite && !["same-origin", "same-site", "none"].includes(secFetchSite)) {
-      return res.status(403).json({ error: "Forbidden: Cross-origin mutating requests are blocked." });
+      return res.status(403).json({ ok: false, error: "Forbidden: Cross-origin mutating requests are blocked.", code: "CSRF_BLOCKED" });
     }
 
     if (origin) {
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
         origin.startsWith("http://localhost:") ||
         origin.startsWith("http://[::1]:");
       if (!isLocal) {
-        return res.status(403).json({ error: "Forbidden: Request origin is not a trusted local host." });
+        return res.status(403).json({ ok: false, error: "Forbidden: Request origin is not a trusted local host.", code: "UNTRUSTED_ORIGIN" });
       }
     }
   }
@@ -101,14 +101,27 @@ app.use("/api", apiRouter);
 
 // Fallback index.html for SPA routes (Express 5 compatible)
 app.use((req, res, next) => {
-  if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
+  if (req.method !== "GET" || req.path.startsWith("/api/") || req.path === "/api") return next();
   res.sendFile(join(root, "public", "index.html"));
+});
+
+// Dedicated 404 handler for unmatched /api routes
+app.use("/api", (req, res) => {
+  res.status(404).json({
+    ok: false,
+    error: `Endpoint not found: ${req.method} ${req.originalUrl || req.url}`,
+    code: "NOT_FOUND",
+  });
 });
 
 // Global Express Error Handler
 app.use((err, req, res, next) => {
   logger.error(`Unhandled request error: ${err.message}`);
-  res.status(err.status || 500).json({ ok: false, error: err.message || "Internal Server Error" });
+  res.status(err.status || 500).json({
+    ok: false,
+    error: err.message || "Internal Server Error",
+    code: err.code || "INTERNAL_ERROR",
+  });
 });
 
 // Port Discovery & Server Startup

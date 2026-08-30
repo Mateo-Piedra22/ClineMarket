@@ -2,12 +2,11 @@
 // Global CLI & NPX Runner for the Cline Marketplace local browser.
 // One-shot: auto-install deps if needed → verify catalog → start server → open browser.
 
-import { spawn } from "node:child_process";
-import { existsSync, statSync, readFileSync } from "node:fs";
+import { spawn, execFile as _execFile } from "node:child_process";
+import { existsSync, statSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { execFile as _execFile } from "node:child_process";
 import { platform } from "node:os";
 import net from "node:net";
 
@@ -37,13 +36,13 @@ function timestamp() {
   return `${colors.gray}[${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}]${colors.reset}`;
 }
 
-function log(msg, ...meta) {
+export function log(msg, ...meta) {
   console.log(`${timestamp()} ${colors.cyan}[CLI]${colors.reset} ${msg}`, ...meta);
 }
-function warn(msg, ...meta) {
+export function warn(msg, ...meta) {
   console.warn(`${timestamp()} ${colors.yellow}[WARN]${colors.reset} ${msg}`, ...meta);
 }
-function error(msg, ...meta) {
+export function error(msg, ...meta) {
   console.error(`${timestamp()} ${colors.red}[ERROR]${colors.reset} ${msg}`, ...meta);
 }
 
@@ -61,19 +60,8 @@ ${colors.bold}Usage:${colors.reset}
   cline-marketplace help              Display this help message
 `;
 
-if (process.argv.includes("--help") || process.argv.includes("-h") || process.argv[2] === "help") {
-  console.log(HELP);
-  process.exit(0);
-}
-
-const args = process.argv.slice(2);
-const sub = args[0];
-const NO_OPEN = args.includes("--no-open");
-const portIdx = args.indexOf("--port");
-const cliPort = portIdx >= 0 ? Number(args[portIdx + 1]) : null;
-
 // Self-bootstrap: ensure dependencies are installed (crucial for npx execution)
-async function ensureDependencies() {
+export async function ensureDependencies() {
   const expressModule = join(pkgRoot, "node_modules", "express");
   if (!existsSync(expressModule)) {
     log("Initializing local runtime dependencies (first-time setup)...");
@@ -89,20 +77,20 @@ async function ensureDependencies() {
   }
 }
 
-function ensureServerEntry() {
+export function ensureServerEntry() {
   if (!existsSync(serverEntry)) {
     error(`server.js not found at ${serverEntry}`);
     process.exit(1);
   }
 }
 
-function hasFreshCatalog() {
+export function hasFreshCatalog() {
   if (!existsSync(catalogFile)) return false;
   try { return Date.now() - statSync(catalogFile).mtimeMs < 24 * 60 * 60 * 1000; }
   catch { return false; }
 }
 
-async function fetchCatalog() {
+export async function fetchCatalog() {
   log("Downloading catalog from upstream registry...");
   try {
     await execFileP(process.execPath, [refreshScript, "--catalog"], { cwd: pkgRoot, timeout: 60_000 });
@@ -114,7 +102,7 @@ async function fetchCatalog() {
   }
 }
 
-async function checkForRemoteUpdates() {
+export async function checkForRemoteUpdates() {
   try {
     const pkg = JSON.parse(readFileSync(pkgJsonFile, "utf8"));
     const currentVersion = pkg.version || "1.0.0";
@@ -135,18 +123,68 @@ async function checkForRemoteUpdates() {
   } catch {}
 }
 
-async function isPortOpen(port, host) {
+export async function isPortOpen(port, host) {
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return false;
+  }
   return new Promise((resolveOpen) => {
-    const sock = net.connect({ port, host });
-    let settled = false;
-    const done = (v) => { if (!settled) { settled = true; resolveOpen(v); sock.destroy(); } };
-    sock.once("connect", () => done(true));
-    sock.once("error", () => done(false));
-    setTimeout(() => done(false), 800);
+    try {
+      const sock = net.connect({ port, host });
+      let settled = false;
+      const done = (v) => {
+        if (!settled) {
+          settled = true;
+          resolveOpen(v);
+          try {
+            sock.destroy();
+          } catch {}
+        }
+      };
+      sock.once("connect", () => done(true));
+      sock.once("error", () => done(false));
+      setTimeout(() => done(false), 800);
+    } catch {
+      resolveOpen(false);
+    }
   });
 }
 
-async function waitForServer(port, host, timeoutMs = 15_000) {
+export function checkPortAvailable(port, host) {
+  if (typeof port !== "number" || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return Promise.resolve(false);
+  }
+  return new Promise((resolve) => {
+    try {
+      const tester = net.createServer()
+        .once("error", () => resolve(false))
+        .once("listening", () => {
+          try {
+            tester.once("close", () => resolve(true)).close();
+          } catch {
+            resolve(true);
+          }
+        })
+        .listen(port, host);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+export async function findAvailablePort(startPort, host, maxAttempts = 20) {
+  if (typeof startPort !== "number" || !Number.isInteger(startPort) || startPort < 1 || startPort > 65535) {
+    return null;
+  }
+  for (let i = 0; i < maxAttempts; i++) {
+    const candidate = startPort + i;
+    if (candidate > 65535) break;
+    const isAvail = await checkPortAvailable(candidate, host);
+    if (isAvail) return candidate;
+  }
+  return null;
+}
+
+export async function waitForServer(port, host, timeoutMs = 15_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await isPortOpen(port, host)) return true;
@@ -155,7 +193,7 @@ async function waitForServer(port, host, timeoutMs = 15_000) {
   return false;
 }
 
-async function probeStatus(port, host, timeoutMs = 5_000) {
+export async function probeStatus(port, host, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -167,7 +205,7 @@ async function probeStatus(port, host, timeoutMs = 5_000) {
   return null;
 }
 
-function startServer(port, host) {
+export function startServer(port, host) {
   const env = { ...process.env, PORT: String(port), HOST: host };
   log(`Spawning server process on http://${host}:${port}`);
   const child = spawn(process.execPath, [serverEntry], {
@@ -191,7 +229,7 @@ function startServer(port, host) {
   return child;
 }
 
-function openBrowser(url) {
+export function openBrowser(url) {
   const os = platform();
   let cmd, cmdArgs;
   if (os === "win32") { cmd = "cmd"; cmdArgs = ["/c", "start", "", url]; }
@@ -207,71 +245,149 @@ function openBrowser(url) {
   }
 }
 
-if (sub === "update") {
-  log("Checking for updates and pulling latest changes...");
-  try {
-    const gitDir = join(pkgRoot, ".git");
-    if (existsSync(gitDir)) {
-      await execFileP("git", ["pull", "origin", "main"], { cwd: pkgRoot });
-      log("Updated from git successfully.");
-    } else {
-      await execFileP(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "-g", "cline-marketplace@latest"]);
-      log("Updated global package via npm.");
+export async function main(argv = process.argv.slice(2)) {
+  if (argv.includes("--help") || argv.includes("-h") || argv[0] === "help") {
+    console.log(HELP);
+    process.exit(0);
+  }
+
+  const sub = argv[0];
+  const NO_OPEN = argv.includes("--no-open");
+  const portIdx = argv.indexOf("--port");
+  let cliPort = null;
+
+  if (portIdx >= 0) {
+    const rawPort = argv[portIdx + 1];
+    const num = Number(rawPort);
+    if (!rawPort || !Number.isInteger(num) || num < 1 || num > 65535) {
+      error(`Invalid port "${rawPort ?? ""}". Port must be an integer between 1 and 65535.`);
+      process.exit(1);
     }
-  } catch (err) {
-    error(`Update failed: ${err.message}`);
-  }
-  process.exit(0);
-} else if (sub === "refresh") {
-  await ensureDependencies();
-  ensureServerEntry();
-  log("Running catalog refresh...");
-  const child = spawn(process.execPath, [refreshScript, ...args.slice(1)], { stdio: "inherit", cwd: pkgRoot });
-  child.on("exit", (code) => process.exit(code ?? 0));
-} else {
-  // Default: full flow
-  await ensureDependencies();
-  ensureServerEntry();
-  const port = Number(cliPort || process.env.PORT || 5173);
-  const host = process.env.HOST || "127.0.0.1";
-  const url = `http://${host}:${port}`;
-
-  if (!hasFreshCatalog()) {
-    log("Catalog cache missing or older than 24h.");
-    await fetchCatalog();
+    cliPort = num;
   }
 
-  // Non-blocking update check
-  checkForRemoteUpdates().catch(() => {});
-
-  let ownedChild = null;
-  if (await isPortOpen(port, host)) {
-    log(`Port ${port} is active; probing existing instance...`);
-    const status = await probeStatus(port, host, 4000);
-    if (status) {
-      log(`Connected to active instance (${status.catalog?.total ?? 0} entries loaded).`);
-    } else {
-      warn(`Port ${port} is occupied by another process. Starting on next available port...`);
-      ownedChild = startServer(port, host);
+  let envPort = null;
+  if (process.env.PORT) {
+    const rawEnv = process.env.PORT;
+    const num = Number(rawEnv);
+    if (!Number.isInteger(num) || num < 1 || num > 65535) {
+      error(`Invalid PORT environment variable "${rawEnv}". Port must be an integer between 1 and 65535.`);
+      process.exit(1);
     }
+    envPort = num;
+  }
+
+  if (sub === "update") {
+    log("Checking for updates and pulling latest changes...");
+    try {
+      const gitDir = join(pkgRoot, ".git");
+      if (existsSync(gitDir)) {
+        await execFileP("git", ["pull", "origin", "main"], { cwd: pkgRoot });
+        log("Updated from git successfully.");
+      } else {
+        await execFileP(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "-g", "cline-marketplace@latest"]);
+        log("Updated global package via npm.");
+      }
+      process.exit(0);
+    } catch (err) {
+      error(`Update failed: ${err.message}`);
+      process.exit(1);
+    }
+  } else if (sub === "refresh") {
+    await ensureDependencies();
+    ensureServerEntry();
+    log("Running catalog refresh...");
+    const child = spawn(process.execPath, [refreshScript, ...argv.slice(1)], { stdio: "inherit", cwd: pkgRoot });
+    child.on("exit", (code) => process.exit(code ?? 0));
   } else {
-    ownedChild = startServer(port, host);
-  }
+    // Default: full flow
+    await ensureDependencies();
+    ensureServerEntry();
+    const initialPort = cliPort || envPort || 5173;
+    const host = process.env.HOST || "127.0.0.1";
 
-  const ready = await waitForServer(port, host);
-  if (!ready && !ownedChild) {
-    error(`Server failed to respond on ${url} within timeout.`);
-    process.exit(1);
-  }
+    if (!hasFreshCatalog()) {
+      log("Catalog cache missing or older than 24h.");
+      await fetchCatalog();
+    }
 
-  if (!NO_OPEN) {
-    setTimeout(() => openBrowser(url), 250);
-  } else {
-    log(`Browser launch skipped (--no-open). URL: ${url}`);
-  }
+    // Non-blocking update check
+    checkForRemoteUpdates().catch(() => {});
 
-  if (!ownedChild) {
-    log("Existing instance active. CLI finished.");
-    setTimeout(() => process.exit(0), 400);
+    let targetPort = initialPort;
+    let ownedChild = null;
+
+    if (await isPortOpen(initialPort, host)) {
+      log(`Port ${initialPort} is active; probing existing instance...`);
+      const status = await probeStatus(initialPort, host, 4000);
+      if (status) {
+        log(`Connected to active instance (${status.catalog?.total ?? 0} entries loaded).`);
+        targetPort = initialPort;
+      } else {
+        warn(`Port ${initialPort} is occupied by another process. Starting on next available port...`);
+        const avail = await findAvailablePort(initialPort + 1, host);
+        if (!avail) {
+          error(`No available port found in range ${initialPort + 1}–${initialPort + 20}`);
+          process.exit(1);
+        }
+        targetPort = avail;
+        ownedChild = startServer(targetPort, host);
+      }
+    } else {
+      const isAvail = await checkPortAvailable(initialPort, host);
+      if (!isAvail) {
+        const avail = await findAvailablePort(initialPort, host);
+        if (!avail) {
+          error(`No available port found in range ${initialPort}–${initialPort + 20}`);
+          process.exit(1);
+        }
+        targetPort = avail;
+      } else {
+        targetPort = initialPort;
+      }
+      ownedChild = startServer(targetPort, host);
+    }
+
+    const url = `http://${host}:${targetPort}`;
+    const ready = await waitForServer(targetPort, host);
+    if (!ready && !ownedChild) {
+      error(`Server failed to respond on ${url} within timeout.`);
+      process.exit(1);
+    } else if (!ready && ownedChild) {
+      error(`Server failed to start on ${url} within timeout.`);
+      try { ownedChild.kill("SIGTERM"); } catch {}
+      process.exit(1);
+    }
+
+    if (!NO_OPEN) {
+      setTimeout(() => openBrowser(url), 250);
+    } else {
+      log(`Browser launch skipped (--no-open). URL: ${url}`);
+    }
+
+    if (!ownedChild) {
+      log("Existing instance active. CLI finished.");
+      setTimeout(() => process.exit(0), 400);
+    }
   }
 }
+
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    const thisFile = fileURLToPath(import.meta.url);
+    const invokedFile = process.argv[1];
+    return resolve(thisFile) === resolve(invokedFile) ||
+      (existsSync(thisFile) && existsSync(invokedFile) && realpathSync(thisFile) === realpathSync(invokedFile));
+  } catch {
+    return true;
+  }
+}
+
+if (isDirectExecution()) {
+  main(process.argv.slice(2)).catch((err) => {
+    error(`Execution failed: ${err.message}`);
+    process.exit(1);
+  });
+}
+

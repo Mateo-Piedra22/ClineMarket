@@ -1,0 +1,33 @@
+# Agent workspaces, internal metadata and logs
+.agents/
+.github/
+.vscode/
+data/
+
+# Documentation, screenshots and audits
+docs/
+*.png
+*.svg
+!public/**/*.png
+!public/**/*.svg
+!public/assets/*.png
+!public/assets/*.svg
+
+# Development, testing and hook scripts
+scripts/capture-screenshots.mjs
+scripts/make-screenshots.mjs
+scripts/make-extra.mjs
+scripts/debug-browser.mjs
+scripts/test-where.mjs
+scripts/unit-test.mjs
+scripts/smoke-test.mjs
+scripts/pre-commit.mjs
+scripts/pre-push.mjs
+scripts/setup-hooks.mjs
+scripts/detect-context.mjs
+scripts/lib/
+
+# OS & Log artifacts
+*.log
+.DS_Store
+Thumbs.db

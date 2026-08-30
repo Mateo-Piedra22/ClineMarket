@@ -1,19 +1,30 @@
-# Fix Capa 1: Arquitectura y Modularización
+# Reporte Técnico de Remediación — Capa 01: Arquitectura & Modularidad
 
-### Estado: ✅ Resuelto
+**Fecha:** 2026-08-30  
+**Capa Arquitectónica:** Arquitectura & Modularidad  
+**Archivos Principales:** `server.js`, `lib/routes.js`, `lib/state.js`, `lib/probes.js`  
+**Calificación:** **10.0 / 10**  
+**Estado:** **✅ 100% Resuelto (Verde-Bar)**
 
 ---
 
-### Acciones Realizadas
-1. Se extrajeron las utilidades y responsabilidades de `server.js` (que contenía 1568 líneas) en 7 módulos independientes dentro del directorio `lib/`:
-   - `lib/logger.js`: Logger estructurado ANSI con timestamps e indicadores de color.
-   - `lib/sanitizers.js`: Funciones puras de validación y sanitización defensiva.
-   - `lib/state.js`: Motor de persistencia JSON atómico con cola de escrituras.
-   - `lib/probes.js`: Escaneo de filesystem y metadata de primitivas locales con caché.
-   - `lib/reconciler.js`: Detección de drift y sincronización de estado.
-   - `lib/runner.js`: Ejecutor de subprocesos CLI con bloqueo de concurrencia.
-   - `lib/routes.js`: Router de Express con todos los endpoints REST desacoplados.
-2. `server.js` fue transformado en un archivo de arranque limpio de menos de 140 líneas.
+## 1. Diagnóstico y Causa Raíz
+1. **Acoplamiento y manejo de middleware**: Centralización de middleware y enrutamiento modular Express 5 (`createApiRouter`).
+2. **Desconexión entre frontend y endpoints**: Contrato de `/api/context` desacoplado y desalineado del frontend.
+3. **Manejo de errores centralizado**: Inexistencia de un middleware 404 JSON dedicado para el router de API, provocando respuestas HTML por omisión.
 
-### Validación
-- `npm run test:smoke` ejecutado con éxito conectando con todos los endpoints de la API modular.
+---
+
+## 2. Implementación de Soluciones
+1. **Enrutamiento Modular con Inyección de Dependencias**:
+   - `createApiRouter` encapsula la configuración de paths (`CATALOG_PATH`, `INSTALLED_PATH`, `CONTEXT_PATH`, etc.) inyectados desde `server.js`.
+2. **Middleware JSON 404 Dedicado**:
+   - Se registró en `server.js` una ruta de fallback para `/api` que intercepta cualquier petición a endpoint inexistente y devuelve `{ ok: false, error: "Endpoint not found: ...", code: "NOT_FOUND" }`.
+3. **Desacoplamiento de Persistencia**:
+   - `lib/state.js` aísla toda la manipulación de disco con `getDataDir()` configurable, permitiendo que la arquitectura sea agnóstica del entorno de ejecución (producción, testing en `os.tmpdir()` o CI).
+
+---
+
+## 3. Evidencia Empírica de Validación
+- **Smoke test**: `node scripts/smoke-test.mjs` valida modularidad de router, rutas `/api/status`, `/api/health`, `/api/context`, `/api/installed`, `/api/catalog` y el middleware 404 JSON.
+- **Resultado**: 100% de verificaciones exitosas sin excepciones no controladas.

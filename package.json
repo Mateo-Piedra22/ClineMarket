@@ -12,7 +12,6 @@
     "lib",
     "public",
     "scripts",
-    "docs",
     "catalog.json",
     "server.js",
     "README.md",

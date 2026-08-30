@@ -108,7 +108,7 @@ flowchart TD
     subgraph Environment ["Local Machine & Tooling"]
         ClineBin["Cline CLI (cline / cline.cmd)"]
         GHBin["GitHub CLI (gh auth token)"]
-        StorageRoots["~/.cline/, ~/.claude/, ~/.cursor/"]
+        StorageRoots["~/.cline/, ~/.claude/, ~/.commandcode/, ~/.agents/, ~/.cursor/"]
         VSCodeStorage["VS Code / Roo-Cline / Cursor MCP Settings"]
     end
 
@@ -311,6 +311,8 @@ The following environment variables can be set:
 | :--- | :--- | :--- |
 | `PORT` | `5173` | Preferred HTTP port. If occupied, the next available port is chosen automatically. |
 | `HOST` | `127.0.0.1` | Network interface to bind the server. |
+| `CLINEMARKET_DATA_DIR` | `data/` | Highest-precedence override directory for local database & cache files. |
+| `DATA_DIR` | `data/` | Secondary override directory for local database & cache files. |
 | `CLINE_HOME` | `~/.cline` | Override directory for Cline storage and plugins. |
 | `MARKETPLACE_CATALOG_URL` | `https://cline.github.io/marketplace/catalog.json` | Upstream registry endpoint. |
 | `MARKETPLACE_REPO` | `cline/marketplace` | GitHub repository used for commit metadata queries. |

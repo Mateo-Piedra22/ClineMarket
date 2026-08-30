@@ -16,7 +16,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const dataDir = join(root, "data");
+const dataDir =
+  process.env.CLINEMARKET_DATA_DIR ||
+  process.env.DATA_DIR ||
+  join(root, "data");
 mkdirSync(dataDir, { recursive: true });
 
 const CATALOG_URL =

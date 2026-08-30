@@ -1,18 +1,32 @@
 #!/usr/bin/env node
-// Pure unit test suite for Cline Marketplace sanitizers, state engine, reconciler, and resolvers.
+// Pure unit test suite for Cline Marketplace sanitizers, state engine, reconciler, resolvers, CLI, and probes.
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { unlinkSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readdirSync, readFileSync, existsSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { resolveCommand, isWindowsBatchShim } from "../lib/resolver.js";
 import {
   sanitizePrimitiveId,
   sanitizePrimitiveType,
   sanitizeWorkspacePath,
 } from "../lib/sanitizers.js";
-import { readJson, safeWriteJson } from "../lib/state.js";
+import { readJson, safeWriteJson, getDataDir } from "../lib/state.js";
 import { reconcile } from "../lib/reconciler.js";
 import { verbFor } from "../lib/runner.js";
+import { isPortOpen } from "../bin/cline-marketplace.js";
+import { parseYamlFrontmatter, extractLocalSkillMeta, clineRootCandidates } from "../lib/probes.js";
+
+// Isolated temporary directory for persistence during unit tests
+const testTmpDir = mkdtempSync(join(tmpdir(), "clinemarket-unit-"));
+process.env.CLINEMARKET_DATA_DIR = testTmpDir;
+
+process.on("exit", () => {
+  try {
+    rmSync(testTmpDir, { recursive: true, force: true });
+  } catch {}
+});
 
 test("sanitizers: sanitizePrimitiveId", () => {
   // Valid IDs
@@ -64,7 +78,7 @@ test("resolver: isWindowsBatchShim", () => {
 });
 
 test("state: safeWriteJson and readJson serialization", async () => {
-  const tmpFile = `data/test-queue-${Date.now()}.json`;
+  const tmpFile = join(testTmpDir, `test-queue-${Date.now()}.json`);
 
   // Concurrent write stress test
   const writes = Array.from({ length: 5 }, (_, i) =>
@@ -74,11 +88,9 @@ test("state: safeWriteJson and readJson serialization", async () => {
   await Promise.all(writes);
 
   const finalData = readJson(tmpFile);
-  assert.ok(finalData);
-  assert.ok(typeof finalData.iteration === "number");
-
-  // Cleanup
-  try { unlinkSync(tmpFile); } catch {}
+  assert.ok(finalData, "File must exist and be valid JSON");
+  assert.strictEqual(typeof finalData.iteration, "number", "iteration must be a number");
+  assert.strictEqual(finalData.iteration, 4, "Final serialized iteration must be exactly 4");
 });
 
 test("runner: verbFor maps primitive types correctly", () => {
@@ -128,4 +140,192 @@ test("command resolver: resolves installed system binaries", async () => {
   const nodeExe = await resolveCommand("node");
   assert.ok(nodeExe);
   assert.ok(nodeExe.length > 0);
+});
+
+test("cli: isPortOpen defensive handling on invalid ports", async () => {
+  const invalidPorts = [0, -1, -5000, 65536, 999999, 3000.5, "5173", null, undefined, {}, NaN, Infinity];
+  for (const p of invalidPorts) {
+    const result = await isPortOpen(p, "127.0.0.1");
+    assert.strictEqual(result, false, `isPortOpen should return false for invalid port ${JSON.stringify(p)} without throwing`);
+  }
+});
+
+test("probes: parseYamlFrontmatter handles block scalars (> and |), multiline, quotes, and metadata", () => {
+  // 1. Folded block scalar (>)
+  const foldedYaml = `---
+name: "folded-skill"
+description: >
+  This is a folded block scalar
+  spanning multiple continuous lines
+  in markdown frontmatter.
+version: '1.2.3'
+---
+# Skill Content`;
+  const fmFolded = parseYamlFrontmatter(foldedYaml);
+  assert.strictEqual(fmFolded.name, "folded-skill");
+  assert.strictEqual(fmFolded.description, "This is a folded block scalar spanning multiple continuous lines in markdown frontmatter.");
+  assert.strictEqual(fmFolded.version, "1.2.3");
+
+  // 2. Literal block scalar (|)
+  const literalYaml = `---
+name: literal-skill
+description: |
+  Line 1 of description
+  Line 2 of description
+---`;
+  const fmLiteral = parseYamlFrontmatter(literalYaml);
+  assert.strictEqual(fmLiteral.name, "literal-skill");
+  assert.strictEqual(fmLiteral.description, "Line 1 of description\nLine 2 of description");
+
+  // 3. Metadata nested mapping & lists
+  const metaYaml = `---
+name: advanced-skill
+metadata:
+  author: AI Team
+  version: 3.0.0
+  triggers: automated, devops
+tags:
+  - web
+  - testing
+keywords: [automation, quality]
+---`;
+  const fmMeta = parseYamlFrontmatter(metaYaml);
+  assert.strictEqual(fmMeta.name, "advanced-skill");
+  assert.ok(fmMeta.metadata && typeof fmMeta.metadata === "object");
+  assert.strictEqual(fmMeta.metadata.author, "AI Team");
+  assert.strictEqual(fmMeta.metadata.version, "3.0.0");
+  assert.strictEqual(fmMeta.metadata.triggers, "automated, devops");
+  assert.deepEqual(fmMeta.tags, ["web", "testing"]);
+  assert.deepEqual(fmMeta.keywords, ["automation", "quality"]);
+
+  // 4. Empty or invalid content returns empty object
+  assert.deepEqual(parseYamlFrontmatter(""), {});
+  assert.deepEqual(parseYamlFrontmatter(null), {});
+  assert.deepEqual(parseYamlFrontmatter("No frontmatter content here"), {});
+});
+
+test("probes: extractLocalSkillMeta handles markdown body and frontmatter without > or | corruption", () => {
+  // Test case A: Skill with folded block scalar (>) in SKILL.md
+  const foldedSkillDir = join(testTmpDir, "skill-folded-test");
+  mkdirSync(foldedSkillDir, { recursive: true });
+  writeFileSync(
+    join(foldedSkillDir, "SKILL.md"),
+    `---
+name: Clean Folded Skill
+description: >
+  High quality description line 1
+  and continuation line 2.
+metadata:
+  author: Custom Author
+  version: 2.1.0
+  triggers: unit-test, regression
+---
+# Main Content
+Some markdown body.`
+  );
+
+  const metaFolded = extractLocalSkillMeta(foldedSkillDir, "fallback-id");
+  assert.strictEqual(metaFolded.name, "Clean Folded Skill");
+  assert.strictEqual(metaFolded.description, "High quality description line 1 and continuation line 2.");
+  assert.notStrictEqual(metaFolded.description, ">", "Description must not be corrupted to single '>' scalar");
+  assert.notStrictEqual(metaFolded.description, "|", "Description must not be corrupted to single '|' scalar");
+  assert.strictEqual(metaFolded.author, "Custom Author");
+  assert.strictEqual(metaFolded.version, "2.1.0");
+  assert.ok(metaFolded.tags.includes("unit-test"));
+  assert.ok(metaFolded.tags.includes("regression"));
+
+  // Test case B: Skill with only Markdown body and no frontmatter
+  const bodySkillDir = join(testTmpDir, "skill-body-test");
+  mkdirSync(bodySkillDir, { recursive: true });
+  writeFileSync(
+    join(bodySkillDir, "SKILL.md"),
+    `# Skill Heading
+
+This is the first standalone markdown paragraph describing the skill capabilities.
+
+## Details
+Additional info.`
+  );
+
+  const metaBody = extractLocalSkillMeta(bodySkillDir, "body-skill");
+  assert.strictEqual(metaBody.name, "body-skill");
+  assert.strictEqual(
+    metaBody.description,
+    "This is the first standalone markdown paragraph describing the skill capabilities."
+  );
+});
+
+test("state: getDataDir environment precedence (CLINEMARKET_DATA_DIR > DATA_DIR > default)", () => {
+  const origCM = process.env.CLINEMARKET_DATA_DIR;
+  const origDD = process.env.DATA_DIR;
+
+  try {
+    // 1. CLINEMARKET_DATA_DIR takes highest precedence
+    process.env.CLINEMARKET_DATA_DIR = join(testTmpDir, "cm_override");
+    process.env.DATA_DIR = join(testTmpDir, "dd_override");
+    assert.strictEqual(getDataDir(), resolve(join(testTmpDir, "cm_override")));
+
+    // 2. DATA_DIR used when CLINEMARKET_DATA_DIR is unset
+    delete process.env.CLINEMARKET_DATA_DIR;
+    process.env.DATA_DIR = join(testTmpDir, "dd_override");
+    assert.strictEqual(getDataDir(), resolve(join(testTmpDir, "dd_override")));
+
+    // 3. Fallback to defaultRoot/data when neither is set
+    delete process.env.CLINEMARKET_DATA_DIR;
+    delete process.env.DATA_DIR;
+    const baseDir = join(testTmpDir, "custom_base");
+    assert.strictEqual(getDataDir(baseDir), join(baseDir, "data"));
+    assert.strictEqual(getDataDir(), join(process.cwd(), "data"));
+  } finally {
+    if (origCM !== undefined) process.env.CLINEMARKET_DATA_DIR = origCM;
+    else delete process.env.CLINEMARKET_DATA_DIR;
+    if (origDD !== undefined) process.env.DATA_DIR = origDD;
+    else delete process.env.DATA_DIR;
+  }
+});
+
+test("state: readJson quarantines corrupt JSON with .corrupt timestamp and returns fallback", () => {
+  const corruptFile = join(testTmpDir, `corrupt-test-${Date.now()}.json`);
+  writeFileSync(corruptFile, "{ invalid: json, not well formed syntax");
+
+  const fallback = { safe: true, recovered: true };
+  const readResult = readJson(corruptFile, fallback);
+
+  assert.deepEqual(readResult, fallback, "readJson must return fallback on corrupted JSON");
+
+  // Verify quarantine backup file was created
+  const filesInDir = readdirSync(testTmpDir);
+  const corruptBackups = filesInDir.filter((f) => f.startsWith(corruptFile.slice(testTmpDir.length + 1)) && f.includes(".corrupt."));
+  assert.ok(corruptBackups.length >= 1, "A .corrupt.<timestamp> quarantine backup file must be created on disk");
+
+  const backupContent = readFileSync(join(testTmpDir, corruptBackups[0]), "utf8");
+  assert.strictEqual(backupContent, "{ invalid: json, not well formed syntax");
+});
+
+test("probes: clineRootCandidates includes ~/.commandcode and ~/.agents", () => {
+  const candidates = clineRootCandidates();
+  assert.ok(Array.isArray(candidates), "clineRootCandidates must return an array");
+
+  // Every path in candidates must exist on filesystem
+  for (const c of candidates) {
+    assert.ok(existsSync(c), `Candidate root ${c} must exist on disk`);
+  }
+
+  const home = homedir();
+  const commandcodePath = join(home, ".commandcode");
+  const agentsPath = join(home, ".agents");
+
+  if (existsSync(commandcodePath)) {
+    assert.ok(
+      candidates.includes(commandcodePath),
+      `candidates must include ~/.commandcode when it exists on disk (${commandcodePath})`
+    );
+  }
+
+  if (existsSync(agentsPath)) {
+    assert.ok(
+      candidates.includes(agentsPath),
+      `candidates must include ~/.agents when it exists on disk (${agentsPath})`
+    );
+  }
 });
