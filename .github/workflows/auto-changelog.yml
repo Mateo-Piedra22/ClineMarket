@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   draft_release:
@@ -25,7 +25,7 @@ jobs:
       - name: Read Current Package Version
         id: pkg_version
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -e "import('node:fs').then(fs => console.log(JSON.parse(fs.readFileSync('./package.json', 'utf8')).version))")
           echo "version=v${VERSION}" >> $GITHUB_OUTPUT
 
       - name: Generate or Update Release Notes

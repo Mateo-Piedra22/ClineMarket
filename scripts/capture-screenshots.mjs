@@ -1,32 +1,73 @@
 import { spawn } from "node:child_process";
 import { writeFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = join(__dirname, "..");
 const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-const PORT = 9222;
-const TARGET_URL = "http://127.0.0.1:5173";
+const CDP_PORT = 9222;
 
 async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+async function findActiveServerPort() {
+  for (let port = 5173; port <= 5185; port++) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/status`, {
+        signal: AbortSignal.timeout(600),
+      });
+      if (res.ok) return port;
+    } catch {}
+  }
+  return null;
+}
+
 async function capture() {
-  console.log("==> Spawning headless Chrome on port", PORT);
+  let spawnedServer = null;
+  let serverPort = await findActiveServerPort();
+
+  if (!serverPort) {
+    console.log("==> Spawning temporary local server for captures...");
+    spawnedServer = spawn(process.execPath, [join(root, "server.js")], {
+      cwd: root,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+
+    for (let i = 0; i < 30; i++) {
+      await sleep(250);
+      serverPort = await findActiveServerPort();
+      if (serverPort) break;
+    }
+
+    if (!serverPort) {
+      if (spawnedServer) { try { spawnedServer.kill(); } catch {} }
+      throw new Error("Could not start server for screenshot capture");
+    }
+  }
+
+  const targetUrl = `http://127.0.0.1:${serverPort}`;
+  console.log(`==> Target Server is verified active on: ${targetUrl}`);
+  console.log("==> Spawning headless Chrome on CDP port", CDP_PORT);
+
   const chrome = spawn(CHROME_PATH, [
-    `--remote-debugging-port=${PORT}`,
+    `--remote-debugging-port=${CDP_PORT}`,
     "--headless=new",
     "--disable-gpu",
     "--window-size=1600,1000",
     "--hide-scrollbars",
-    TARGET_URL,
+    targetUrl,
   ], { stdio: "ignore" });
 
   try {
-    // Wait for CDP endpoint to become ready
     let jsonVersion = null;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 35; i++) {
       try {
-        const r = await fetch(`http://127.0.0.1:${PORT}/json/version`);
+        const r = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`, {
+          signal: AbortSignal.timeout(500),
+        });
         if (r.ok) { jsonVersion = await r.json(); break; }
       } catch {}
       await sleep(200);
@@ -35,8 +76,7 @@ async function capture() {
     if (!jsonVersion) throw new Error("Could not connect to Chrome DevTools port");
     console.log("Connected to Chrome DevTools:", jsonVersion.Browser);
 
-    // Get list of targets/pages
-    const pagesRes = await fetch(`http://127.0.0.1:${PORT}/json/list`);
+    const pagesRes = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`);
     const pages = await pagesRes.json();
     const targetPage = pages.find((p) => p.type === "page") || pages[0];
     if (!targetPage || !targetPage.webSocketDebuggerUrl) {
@@ -57,7 +97,7 @@ async function capture() {
       }
     };
 
-    await new Promise((resolveOpen) => ws.onopen = resolveOpen);
+    await new Promise((resolveOpen) => (ws.onopen = resolveOpen));
 
     function send(method, params = {}) {
       const id = idCounter++;
@@ -70,7 +110,6 @@ async function capture() {
       });
     }
 
-    // Enable domains
     await send("Page.enable");
     await send("Runtime.enable");
     await send("DOM.enable");
@@ -81,9 +120,15 @@ async function capture() {
       mobile: false,
     });
 
-    // Wait for catalog to load
     console.log("Waiting for catalog DOM to render...");
-    await sleep(2500);
+    for (let i = 0; i < 30; i++) {
+      const evalRes = await send("Runtime.evaluate", {
+        expression: `Boolean(document.querySelector('.card'))`,
+      });
+      if (evalRes?.result?.value === true) break;
+      await sleep(250);
+    }
+    await sleep(800);
 
     // 1. Screenshot Catalog View
     console.log("Capturing Catalog View...");
@@ -96,7 +141,7 @@ async function capture() {
     await send("Runtime.evaluate", {
       expression: `document.querySelector('.tab[data-tab="recommended"]').click();`,
     });
-    await sleep(1500);
+    await sleep(1200);
     const recShot = await send("Page.captureScreenshot", { format: "png" });
     writeFileSync("docs/screenshot-recommended.png", Buffer.from(recShot.data, "base64"));
     console.log("Saved docs/screenshot-recommended.png");
@@ -106,7 +151,7 @@ async function capture() {
     await send("Runtime.evaluate", {
       expression: `document.querySelector('.tab[data-tab="stats"]').click();`,
     });
-    await sleep(1500);
+    await sleep(1200);
     const statsShot = await send("Page.captureScreenshot", { format: "png" });
     writeFileSync("docs/screenshot-stats.png", Buffer.from(statsShot.data, "base64"));
     console.log("Saved docs/screenshot-stats.png");
@@ -121,9 +166,9 @@ async function capture() {
         expression: `Boolean(document.querySelector('#healthList .health-item'))`,
       });
       if (evalRes?.result?.value === true) break;
-      await sleep(300);
+      await sleep(200);
     }
-    await sleep(600);
+    await sleep(500);
     const healthShot = await send("Page.captureScreenshot", { format: "png" });
     writeFileSync("docs/screenshot-health.png", Buffer.from(healthShot.data, "base64"));
     console.log("Saved docs/screenshot-health.png");
@@ -139,7 +184,7 @@ async function capture() {
         }, 300);
       `,
     });
-    await sleep(1500);
+    await sleep(1200);
     const detailShot = await send("Page.captureScreenshot", { format: "png" });
     writeFileSync("docs/screenshot-detail.png", Buffer.from(detailShot.data, "base64"));
     console.log("Saved docs/screenshot-detail.png");
@@ -148,6 +193,9 @@ async function capture() {
     console.log("==> ALL SCREENSHOTS CAPTURED SUCCESSFULLY!");
   } finally {
     try { chrome.kill(); } catch {}
+    if (spawnedServer) {
+      try { spawnedServer.kill(); } catch {}
+    }
   }
 }
 
