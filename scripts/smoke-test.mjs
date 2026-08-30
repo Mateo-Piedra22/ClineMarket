@@ -107,6 +107,18 @@ async function main() {
       console.log(`  sample local entry: ${sampleLocal.key} -> ${sampleLocal.name}`);
     }
 
+    console.log("\n==> Testing /api/stats");
+    const stats = await getJson(`${BASE}/api/stats`);
+    console.log(`  stats total: ${stats.total}, top authors: ${stats.topAuthors?.length}, tags: ${stats.byTag?.length}`);
+
+    console.log("\n==> Testing /api/changelog");
+    const changelog = await getJson(`${BASE}/api/changelog`);
+    console.log(`  changelog added: ${changelog.added?.length}, removed: ${changelog.removed?.length}, updated: ${changelog.updated?.length}`);
+
+    console.log("\n==> Testing /api/export");
+    const exportData = await getJson(`${BASE}/api/export`);
+    console.log(`  export records: ${exportData.installed?.length}`);
+
     console.log("\n==> ALL SMOKE TESTS PASSED!\n");
   } finally {
     if (spawnedServer) {

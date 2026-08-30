@@ -820,14 +820,19 @@ function renderTagFilter() {
   }
 
   for (const t of tags.slice(0, 40)) {
+    const tagId = typeof t === "string" ? t : (t.id || t.label || "");
+    const tagLabel = typeof t === "string" ? t : (t.label || t.id || "");
+    const count = typeof t === "object" && t.count !== undefined ? t.count : null;
+    if (!tagId) continue;
+
     const btn = document.createElement("button");
     btn.className = "chip";
-    btn.dataset.tag = t.id;
-    btn.innerHTML = `${escapeHtml(t.label)} <span class="count">${t.count || 0}</span>`;
-    if (state.filter.tags.has(t.id)) btn.classList.add("active");
+    btn.dataset.tag = tagId;
+    btn.innerHTML = `${escapeHtml(tagLabel)} ${count !== null ? `<span class="count">${count}</span>` : ""}`;
+    if (state.filter.tags.has(tagId)) btn.classList.add("active");
     btn.addEventListener("click", () => {
-      if (state.filter.tags.has(t.id)) state.filter.tags.delete(t.id);
-      else state.filter.tags.add(t.id);
+      if (state.filter.tags.has(tagId)) state.filter.tags.delete(tagId);
+      else state.filter.tags.add(tagId);
       renderTagFilter();
       render();
     });
