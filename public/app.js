@@ -1475,7 +1475,9 @@ async function loadCatalog() {
   if (!state.catalog || !state.catalog.entries?.length) {
     renderSkeletons();
   }
-  const cat = await getJson("/api/catalog");
+  const cwd = state.contextCwd || undefined;
+  const url = cwd ? `/api/catalog?cwd=${encodeURIComponent(cwd)}` : "/api/catalog";
+  const cat = await getJson(url);
   state.catalog = cat;
   updateCounts();
   updateStatusPills();
@@ -1484,7 +1486,9 @@ async function loadCatalog() {
 }
 
 async function refreshInstalled() {
-  state.installed = await getJson("/api/installed");
+  const cwd = state.contextCwd || undefined;
+  const url = cwd ? `/api/installed?cwd=${encodeURIComponent(cwd)}` : "/api/installed";
+  state.installed = await getJson(url);
   updateStatusPills();
 }
 
