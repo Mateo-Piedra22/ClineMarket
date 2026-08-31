@@ -17,12 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `POST /api/workspaces/validate` validating workspace directory existence, `.git` repository status, and `.cline` configurations.
 - **Upstream Release Timeline & Activity Stream**: Synthesized `recentReleases` in `/api/changelog` from `catalog.json` and `data/upstream-meta.json` with commit authors, avatars, relative/absolute timestamps, tags, and 1-click "Details" and "Install" triggers.
 - **Changelog Sync Status Banner**: Compact visual alert (`.chlog-sync-banner`) displaying up-to-date registry state and inline diff trigger when zero diffs are detected.
+- **Subprocess Environment & PATH Augmentation**: Augmented `lib/runner.js` with `getExecutionEnv()` ensuring `PATH`, `Path`, `PATHEXT`, and `ComSpec` include Node.js and global npm directories, preventing `ENOENT: uv_spawn 'npm'` failures during primitive installations.
+- **High-Speed Concurrent Metadata Refresh**: Refactored `scripts/refresh-catalog.mjs` to fetch GitHub commit timestamps in parallel chunks with 120s server timeout, dropping sync runtime from 75s to ~15s.
+- **Wide-Screen 2-Column Responsive Grid**: Overhauled Health and Changelog tab layouts with full-width responsive 2-column card grids, eliminating horizontal whitespace on wide displays.
 - **Deep CSS & UI Polish**:
   - Dark customized Webkit scrollbars (`::-webkit-scrollbar`).
   - Spring-like modal scale-in / fade-in animations with `backdrop-filter: blur(10px)`.
   - Accessible focus rings (`:focus-visible` with 2px acid lime outline).
   - Floating bulk actions toolbar dock (`.bulk-bar`).
   - Environment variable schema tables in detail modals (`.env-table`).
+  - ANSI code filter (`stripAnsi`) on modal execution log streams.
 
 ---
 

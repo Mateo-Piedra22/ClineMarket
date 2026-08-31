@@ -172,41 +172,44 @@ async function lastCommitsForType(type, slugs, { maxCommits = 300 } = {}) {
   return { result, remaining: [...remaining] };
 }
 
-// Also try the per-entry endpoint WITHOUT `files` (v3+json). It's a
-// fallback in case the bulk pass missed something because `files` was
-// truncated or the commit hit the file path with a rename. We compare
-// against the existing result so we don't overwrite a fresher answer.
 async function fillMissingPerEntry(type, slugs, current) {
   const out = { ...current };
-  const delay = githubToken ? 30 : 3100;
-  let touched = 0;
-  for (const slug of slugs) {
-    if (out[slug] && !out[slug].error) continue;
-    try {
-      const path = `registry/${type}s/${slug}/entry.json`;
-      const url =
-        `https://api.github.com/repos/${REPO}/commits` +
-        `?path=${encodeURIComponent(path)}&per_page=1`;
-      const commits = await fetchJsonWithHeaders(url);
-      if (Array.isArray(commits) && commits[0]) {
-        const c = commits[0];
-        const newer = new Date(c.commit?.author?.date || 0).getTime();
-        const existing = out[slug]?.committedAt
-          ? new Date(out[slug].committedAt).getTime() : 0;
-        if (newer > existing) {
-          out[slug] = {
-            sha: c.sha,
-            committedAt: c.commit?.author?.date || c.commit?.committer?.date || null,
-            message: c.commit?.message?.split("\n")[0] || null,
-          };
+  const missingSlugs = slugs.filter((slug) => !out[slug] || out[slug].error);
+  if (missingSlugs.length === 0) return out;
+
+  const concurrency = githubToken ? 6 : 1;
+  const delay = githubToken ? 20 : 3100;
+
+  for (let i = 0; i < missingSlugs.length; i += concurrency) {
+    const chunk = missingSlugs.slice(i, i + concurrency);
+    await Promise.all(
+      chunk.map(async (slug) => {
+        try {
+          const path = `registry/${type}s/${slug}/entry.json`;
+          const url =
+            `https://api.github.com/repos/${REPO}/commits` +
+            `?path=${encodeURIComponent(path)}&per_page=1`;
+          const commits = await fetchJsonWithHeaders(url);
+          if (Array.isArray(commits) && commits[0]) {
+            const c = commits[0];
+            const newer = new Date(c.commit?.author?.date || 0).getTime();
+            const existing = out[slug]?.committedAt
+              ? new Date(out[slug].committedAt).getTime()
+              : 0;
+            if (newer > existing) {
+              out[slug] = {
+                sha: c.sha,
+                committedAt: c.commit?.author?.date || c.commit?.committer?.date || null,
+                message: c.commit?.message?.split("\n")[0] || null,
+              };
+            }
+          }
+        } catch (err) {
+          out[slug] = { error: String(err.message || err) };
         }
-      }
-    } catch (err) {
-      out[slug] = { error: String(err.message || err) };
-    }
-    touched++;
-    if (githubToken && touched % 25 === 0) await new Promise((r) => setTimeout(r, 50));
-    else if (touched % 5 === 0) await new Promise((r) => setTimeout(r, delay));
+      })
+    );
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
   }
   return out;
 }

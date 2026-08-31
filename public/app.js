@@ -1240,12 +1240,17 @@ async function copyToClipboard(text, btnElement = null) {
   }
 }
 
+function stripAnsi(str) {
+  return typeof str === "string" ? str.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "") : "";
+}
+
 function showInstallOutput(out, isError) {
   const host = $("#installOutput");
   if (!host) return;
   host.innerHTML = "";
   if (!out) return;
 
+  const cleanOut = stripAnsi(out);
   const wrap = document.createElement("div");
   wrap.style.marginTop = "14px";
   wrap.innerHTML = `
@@ -1255,9 +1260,9 @@ function showInstallOutput(out, isError) {
     </div>
     <pre class="install-output ${isError ? "error" : ""}"></pre>
   `;
-  wrap.querySelector("pre").textContent = out;
+  wrap.querySelector("pre").textContent = cleanOut;
   wrap.querySelector("#btnCopyOutput").addEventListener("click", () => {
-    copyToClipboard(out, wrap.querySelector("#btnCopyOutput"));
+    copyToClipboard(cleanOut, wrap.querySelector("#btnCopyOutput"));
   });
   host.appendChild(wrap);
 }

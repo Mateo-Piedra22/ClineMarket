@@ -1387,7 +1387,7 @@ main {
   align-items: center;
   flex-wrap: wrap;
   gap: 20px;
-  max-width: 1000px;
+  width: 100%;
 }
 .health-kpi-status {
   display: flex;
@@ -1447,6 +1447,18 @@ main {
   margin-top: 2px;
 }
 
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .health-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .health-item {
   background: var(--surface-charcoal-900);
   border: 1.5px solid #2d2d2d;
@@ -1497,10 +1509,15 @@ main {
 }
 
 .health-storage-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+}
+@media (max-width: 900px) {
+  .health-storage-list {
+    grid-template-columns: 1fr;
+  }
 }
 .health-storage-row {
   background: #141414;
@@ -1545,7 +1562,7 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
   margin-bottom: 24px;
-  max-width: 1000px;
+  width: 100%;
 }
 .kpi-card {
   background: var(--surface-charcoal-900);
@@ -1574,12 +1591,12 @@ main {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 18px;
-  max-width: 1000px;
+  width: 100%;
 }
 
 .timeline-section {
   margin-top: 32px;
-  max-width: 1000px;
+  width: 100%;
 }
 .timeline-head {
   display: flex;
@@ -1590,9 +1607,15 @@ main {
   border-bottom: 1px solid #222222;
 }
 .timeline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .timeline-list {
+    grid-template-columns: 1fr;
+  }
 }
 .timeline-card {
   background: var(--surface-charcoal-900);
