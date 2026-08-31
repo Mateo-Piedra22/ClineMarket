@@ -93,22 +93,31 @@ function formatDate(iso) {
   return Number.isFinite(d.getTime()) ? d.toISOString().slice(0, 10) : "—";
 }
 
+function getKey(entry) {
+  if (!entry) return "";
+  return entry.key || (entry.type && entry.id ? `${entry.type}:${entry.id}` : "");
+}
+
 function isInstalled(entry) {
-  const it = state.installed?.items?.[entry.key];
+  const k = getKey(entry);
+  const it = k ? state.installed?.items?.[k] : null;
   return Boolean(it && it.detected);
 }
 
 function isDrift(entry) {
-  const it = state.installed?.items?.[entry.key];
+  const k = getKey(entry);
+  const it = k ? state.installed?.items?.[k] : null;
   return Boolean(it && !it.detected);
 }
 
 function installedMeta(entry) {
-  return state.installed?.items?.[entry.key] || null;
+  const k = getKey(entry);
+  return k ? (state.installed?.items?.[k] || null) : null;
 }
 
 function isWatched(entry) {
-  return Boolean(state.watchlist?.items?.find((w) => w.key === entry.key));
+  const k = getKey(entry);
+  return Boolean(k && state.watchlist?.items?.find((w) => w.key === k));
 }
 
 // ---- Modal Management & Focus Traps ----------------------------------------
@@ -1287,8 +1296,11 @@ async function runInstall(entry, force = false) {
       `${entry.name} · exit ${res.exitCode} (${state.installScope === "workspace" ? "project" : "global"})`,
       res.ok ? "success" : "error");
     await refreshInstalled();
+    await loadCatalog();
     if (!$("#detailModal").classList.contains("hidden")) {
-      openDetail({ ...entry });
+      const k = getKey(entry);
+      const latest = (state.catalog?.entries || []).find((x) => getKey(x) === k) || entry;
+      openDetail(latest);
     }
   } catch (err) {
     showInstallOutput(String(err.message || err), true);
@@ -1318,8 +1330,11 @@ async function runUninstall(entry) {
       `${entry.name} · exit ${res.exitCode}`,
       res.ok ? "success" : "error");
     await refreshInstalled();
+    await loadCatalog();
     if (!$("#detailModal").classList.contains("hidden")) {
-      openDetail({ ...entry });
+      const k = getKey(entry);
+      const latest = (state.catalog?.entries || []).find((x) => getKey(x) === k) || entry;
+      openDetail(latest);
     }
   } catch (err) {
     showInstallOutput(String(err.message || err), true);
@@ -1336,7 +1351,12 @@ async function runMarkManual(entry) {
     await postJson("/api/mark", { type: entry.type, id: entry.id, source: "manual" });
     toast("Marked", `${entry.name} marked as installed manually`, "success");
     await refreshInstalled();
-    openDetail({ ...entry });
+    await loadCatalog();
+    if (!$("#detailModal").classList.contains("hidden")) {
+      const k = getKey(entry);
+      const latest = (state.catalog?.entries || []).find((x) => getKey(x) === k) || entry;
+      openDetail(latest);
+    }
     render();
     updateStatusPills();
   } catch (err) {
@@ -1349,7 +1369,12 @@ async function runForget(entry) {
     await delJson(`/api/mark/${entry.type}/${entry.id}`);
     toast("Forgotten", `${entry.name} removed from local records`, "success");
     await refreshInstalled();
-    openDetail({ ...entry });
+    await loadCatalog();
+    if (!$("#detailModal").classList.contains("hidden")) {
+      const k = getKey(entry);
+      const latest = (state.catalog?.entries || []).find((x) => getKey(x) === k) || entry;
+      openDetail(latest);
+    }
     render();
     updateStatusPills();
   } catch (err) {

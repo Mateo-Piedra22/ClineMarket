@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Subprocess Environment & PATH Augmentation**: Augmented `lib/runner.js` with `getExecutionEnv()` ensuring `PATH`, `Path`, `PATHEXT`, and `ComSpec` include Node.js and global npm directories, preventing `ENOENT: uv_spawn 'npm'` failures during primitive installations.
 - **High-Speed Concurrent Metadata Refresh**: Refactored `scripts/refresh-catalog.mjs` to fetch GitHub commit timestamps in parallel chunks with 120s server timeout, dropping sync runtime from 75s to ~15s.
 - **Wide-Screen 2-Column Responsive Grid**: Overhauled Health and Changelog tab layouts with full-width responsive 2-column card grids, eliminating horizontal whitespace on wide displays.
+- **Catalog Deduplication & Real-Time State Synchronization**: Added canonical key injection (`e.key || \`${e.type}:${e.id}\``) in `/api/catalog` route builder, completely preventing duplicate local synthetic cards for installed marketplace primitives (e.g., Goal plugin, community skills, MCPs). Added automatic real-time catalog and modal state synchronization after install, uninstall, mark, and forget actions.
 - **Deep CSS & UI Polish**:
   - Dark customized Webkit scrollbars (`::-webkit-scrollbar`).
   - Spring-like modal scale-in / fade-in animations with `backdrop-filter: blur(10px)`.

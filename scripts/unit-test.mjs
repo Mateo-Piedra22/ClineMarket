@@ -559,10 +559,16 @@ test("routes: createApiRouter handles all endpoints with in-process HTTP server"
     const vRes = await fetch(`${baseUrl}/version`);
     assert.strictEqual(vRes.ok, true);
 
-    // 2. GET /api/catalog with queries
+    // 2. GET /api/catalog with queries and deduplication validation
     const catAll = await (await fetch(`${baseUrl}/catalog`)).json();
     assert.ok(catAll.counts);
     assert.ok(catAll.entries.length >= 3);
+    for (const e of catAll.entries) {
+      assert.ok(e.key, `Entry ${e.id} missing key`);
+      assert.strictEqual(e.key, `${e.type}:${e.id}`);
+    }
+    const allKeys = catAll.entries.map((e) => e.key);
+    assert.strictEqual(allKeys.length, new Set(allKeys).size, "Duplicate entries found in /api/catalog");
 
     const catQuery = await (await fetch(`${baseUrl}/catalog?q=goal&type=plugin&tag=automation&sort=popular`)).json();
     assert.ok(catQuery.entries.length >= 1);
