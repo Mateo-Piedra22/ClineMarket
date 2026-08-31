@@ -450,18 +450,30 @@ test("probes: fsProbe discovers workspace-local custom skills and settings", () 
 // -----------------------------------------------------------------------------
 // 8. Structured Logger Test Suite
 // -----------------------------------------------------------------------------
-test("logger: all log methods format messages correctly", () => {
-  assert.ok(colors.reset !== undefined, "Colors reset must be defined");
-  // Execute all logger methods to ensure zero thrown errors
+test("logger: all log methods and file rotation format correctly", () => {
+  const logDir = join(testTmpDir, "test-logs");
+  logger.initFileLogging({ logDir, retentionDays: 7 });
+
   logger.info("Test info message");
   logger.warn("Test warn message");
   logger.error("Test error message");
   logger.success("Test success message");
+  logger.cli("Test cli message");
   logger.exec("cline plugin install test-plugin", 150, 0);
   logger.exec("cline plugin install test-plugin", 200, 1);
   logger.http("GET", "/api/catalog", 200, 25);
   logger.http("POST", "/api/install", 400, 10);
   logger.http("DELETE", "/api/mark", 500, 45);
+  logger.storage("MUTATE", "installed.json");
+
+  // Check recent in-memory logs
+  const recLogs = logger.getRecentLogs(10);
+  assert.ok(Array.isArray(recLogs));
+  assert.ok(recLogs.length >= 5);
+
+  // Check pruning
+  const pruned = logger.pruneOldLogs(logDir, 14);
+  assert.strictEqual(typeof pruned, "number");
 });
 
 // -----------------------------------------------------------------------------
@@ -738,7 +750,29 @@ test("routes: createApiRouter handles all endpoints with in-process HTTP server"
     const forgetBad = await fetch(`${baseUrl}/forget/invalid_type/invalid_id`, { method: "DELETE" });
     assert.strictEqual(forgetBad.status, 400);
 
-    // 16. 404 handler
+    // 16. Workspaces validate endpoint
+    const valGood = await (await fetch(`${baseUrl}/workspaces/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: mockWs }),
+    })).json();
+    assert.strictEqual(valGood.ok, true);
+    assert.strictEqual(valGood.exists, true);
+    assert.strictEqual(valGood.isGit, true);
+
+    const valBad = await fetch(`${baseUrl}/workspaces/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: join(testTmpDir, "nonexistent-dir-99") }),
+    });
+    assert.strictEqual(valBad.status, 404);
+
+    // 17. Server logs endpoint
+    const logsRes = await (await fetch(`${baseUrl}/logs?limit=50`)).json();
+    assert.strictEqual(logsRes.ok, true);
+    assert.ok(Array.isArray(logsRes.logs));
+
+    // 18. 404 handler
     const notFound = await fetch(`${baseUrl}/nonexistent-xyz-404`);
     assert.strictEqual(notFound.status, 404);
   } finally {

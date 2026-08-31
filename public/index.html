@@ -163,8 +163,11 @@
 
   <main id="mainContainer">
     <aside class="sidebar" id="sidebar" aria-label="Filters and options">
-      <section>
-        <h3>Search</h3>
+      <section class="sidebar-search-section">
+        <div class="section-title-row">
+          <h3>Search</h3>
+          <span class="kbd-hint"><kbd>/</kbd></span>
+        </div>
         <div class="search-wrap">
           <svg class="search-icon ui-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
           <input type="search" id="search" placeholder="Search primitives, authors, tags…" aria-label="Search catalog" autocomplete="off" />
@@ -174,33 +177,42 @@
         </div>
       </section>
 
-      <section>
+      <section class="sidebar-type-section">
         <h3>Type</h3>
         <div class="chips" id="typeFilter" role="group" aria-label="Filter by type">
           <button data-type="all" class="chip active">All <span class="count" id="cntAll">0</span></button>
-          <button data-type="plugin" class="chip">Plugins <span class="count" id="cntPlugin">0</span></button>
-          <button data-type="skill" class="chip">Skills <span class="count" id="cntSkill">0</span></button>
-          <button data-type="mcp" class="chip">MCPs <span class="count" id="cntMcp">0</span></button>
+          <button data-type="plugin" class="chip"><span class="type-dot plugin"></span>Plugins <span class="count" id="cntPlugin">0</span></button>
+          <button data-type="skill" class="chip"><span class="type-dot skill"></span>Skills <span class="count" id="cntSkill">0</span></button>
+          <button data-type="mcp" class="chip"><span class="type-dot mcp"></span>MCPs <span class="count" id="cntMcp">0</span></button>
         </div>
       </section>
 
-      <section>
+      <section class="sidebar-flags-section">
         <h3>State &amp; Flags</h3>
-        <label class="check"><input type="checkbox" id="onlyInstalled" /> Installed only</label>
-        <label class="check"><input type="checkbox" id="onlyLocal" /> Local / Custom only</label>
-        <label class="check"><input type="checkbox" id="onlyVerified" /> Verified only</label>
-        <label class="check"><input type="checkbox" id="onlyFeatured" /> Featured only</label>
-        <label class="check"><input type="checkbox" id="onlyNew" /> New since refresh</label>
-        <label class="check"><input type="checkbox" id="onlyWatchlist" /> Watchlist only</label>
-        <label class="check"><input type="checkbox" id="hideDrift" /> Hide drift</label>
+        <div class="flags-grid">
+          <label class="check"><input type="checkbox" id="onlyInstalled" /> Installed</label>
+          <label class="check"><input type="checkbox" id="onlyLocal" /> Local / Custom</label>
+          <label class="check"><input type="checkbox" id="onlyVerified" /> Verified</label>
+          <label class="check"><input type="checkbox" id="onlyFeatured" /> Featured</label>
+          <label class="check"><input type="checkbox" id="onlyNew" /> New Upstream</label>
+          <label class="check"><input type="checkbox" id="onlyWatchlist" /> Watchlist</label>
+          <label class="check"><input type="checkbox" id="hideDrift" /> Hide drift</label>
+        </div>
       </section>
 
-      <section>
-        <h3>Tags <button id="btnClearTags" class="ghost small hidden" style="font-size:10px;padding:2px 8px">clear</button></h3>
+      <section class="sidebar-tags-section">
+        <div class="section-title-row">
+          <h3>Tags <span class="tag-count-badge" id="tagTotalBadge">0</span></h3>
+          <button id="btnClearTags" class="ghost small hidden btn-clear-tags">clear</button>
+        </div>
+        <div class="tag-search-wrap">
+          <input type="search" id="tagSearchInput" class="tag-search-input" placeholder="Filter tags…" aria-label="Filter tags list" />
+        </div>
         <div class="chips small" id="tagFilter" role="group" aria-label="Filter by tags"></div>
+        <button type="button" id="btnToggleAllTags" class="ghost small btn-toggle-tags hidden">Show all tags (+)</button>
       </section>
 
-      <section>
+      <section class="sidebar-sort-section">
         <h3>Sort By</h3>
         <select id="sortBy" aria-label="Sort catalog entries">
           <option value="updated">Recently updated</option>
@@ -211,27 +223,51 @@
         </select>
       </section>
 
-      <section class="context-panel" style="background:#181818;border:1.5px solid #2d2d2d;border-radius:20px;padding:16px">
-        <h3>Project Workspace</h3>
-        <div id="contextSummary"><span class="muted small" style="color:#888">detecting stack…</span></div>
-        
-        <div style="display:flex;gap:6px;margin:10px 0 6px 0">
-          <button type="button" class="chip active small" id="scopeGlobalBtn" style="font-size:11px;padding:3px 10px">Global Scope</button>
-          <button type="button" class="chip small" id="scopeWorkspaceBtn" style="font-size:11px;padding:3px 10px">Project Scope</button>
+      <!-- Advanced Project Workspace Control Card (Requerimiento 1) -->
+      <section class="context-panel" id="projectWorkspaceSection">
+        <div class="workspace-card-head">
+          <div class="workspace-title-row">
+            <div class="workspace-title-label">
+              <svg class="ui-icon" style="width:14px;height:14px;color:var(--color-acid-lime)" aria-hidden="true"><use href="#icon-package"></use></svg>
+              <h3>Project Workspace</h3>
+            </div>
+            <span class="workspace-status-badge" id="wsStatusBadge">Active</span>
+          </div>
+          <div id="contextSummary" class="workspace-summary-box">
+            <span class="muted small">detecting stack…</span>
+          </div>
         </div>
 
-        <select id="recentWorkspacesSelect" aria-label="Recent Workspaces" style="margin-bottom:8px;font-size:12px;padding:6px 12px">
-          <option value="">Recent Workspaces (Select to Switch)</option>
-        </select>
-        
-        <input type="text" id="contextCwd" placeholder="override workspace path…" aria-label="Project workspace path" />
+        <div class="workspace-scope-toggle" role="group" aria-label="Installation Scope">
+          <button type="button" class="scope-pill-btn active" id="scopeGlobalBtn" title="Installs primitives globally to ~/.cline">
+            <span class="scope-dot"></span>
+            <span>Global Scope</span>
+          </button>
+          <button type="button" class="scope-pill-btn" id="scopeWorkspaceBtn" title="Installs primitives for current project directory">
+            <span class="scope-dot"></span>
+            <span>Project Scope</span>
+          </button>
+        </div>
+        <p class="scope-helper-text" id="scopeHelperText">Installs globally into <code>~/.cline</code></p>
+
+        <div class="workspace-switcher-wrap">
+          <select id="recentWorkspacesSelect" aria-label="Recent Workspaces">
+            <option value="">Recent Workspaces (Select to Switch)</option>
+          </select>
+          
+          <div class="workspace-override-wrap">
+            <input type="text" id="contextCwd" placeholder="override workspace path…" aria-label="Project workspace path" />
+            <button type="button" id="btnValidateWorkspace" class="ghost small btn-ws-action" title="Validate path">✓</button>
+            <button type="button" id="btnBrowseCurrentDir" class="ghost small btn-ws-action" title="Use current directory">cwd</button>
+          </div>
+        </div>
       </section>
 
-      <section class="footer-tip" style="font-size:12px;color:#777">
+      <section class="footer-tip">
         <p>Press <kbd>/</kbd> to search · <kbd>?</kbd> for shortcuts</p>
         <div style="display:flex;gap:8px;margin-top:10px">
           <button id="btnExport" class="ghost small">Export JSON</button>
-          <label class="import-label ghost small" style="padding:5px 12px;border:1.5px solid #333;border-radius:var(--radius-pills);cursor:pointer">Import<input type="file" id="fileImport" accept="application/json" hidden /></label>
+          <label class="import-label ghost small">Import<input type="file" id="fileImport" accept="application/json" hidden /></label>
         </div>
       </section>
     </aside>
@@ -239,7 +275,7 @@
     <section class="content">
       <!-- Active filters bar -->
       <div id="activeFiltersBar" class="active-filters-bar hidden">
-        <span style="font-size:12px;color:#777;font-weight:700;text-transform:uppercase">Active Filters:</span>
+        <span class="active-filters-label">Active Filters:</span>
         <div id="activeFiltersList" class="chips small"></div>
         <button id="btnClearAllFilters" class="ghost small" style="margin-left:auto;">Clear all</button>
       </div>
@@ -291,28 +327,88 @@
         </div>
       </div>
 
-      <!-- Changelog tab -->
+      <!-- Changelog tab (Requerimiento 4) -->
       <div id="tab-changelog" class="tab-pane" role="tabpanel">
-        <div class="changelog-grid">
-          <section class="stat-card"><h3>Added <span class="badge new" id="chlogAddedCount">0</span></h3><div id="chlogAdded"></div></section>
-          <section class="stat-card"><h3>Removed <span class="badge drift" id="chlogRemovedCount">0</span></h3><div id="chlogRemoved"></div></section>
-          <section class="stat-card wide"><h3>Updated <span class="badge featured" id="chlogUpdatedCount">0</span></h3><div id="chlogUpdated"></div></section>
+        <!-- Top KPI summary cards -->
+        <div class="changelog-kpi-bar" id="chlogKpiBar">
+          <div class="kpi-card"><span class="kpi-num" id="chlogAddedCount">0</span><span class="kpi-label">Added</span></div>
+          <div class="kpi-card"><span class="kpi-num" id="chlogRemovedCount">0</span><span class="kpi-label">Removed</span></div>
+          <div class="kpi-card"><span class="kpi-num" id="chlogUpdatedCount">0</span><span class="kpi-label">Updated</span></div>
+          <div class="kpi-card"><span class="kpi-num" id="chlogCatalogTotal">0</span><span class="kpi-label">Total Catalog</span></div>
+          <div class="kpi-card"><span class="kpi-num" id="chlogLastSync" style="font-size:13px;font-family:var(--font-body)">Synced</span><span class="kpi-label">Last Upstream Sync</span></div>
         </div>
+
+        <div class="changelog-actions-bar">
+          <div style="display:flex;align-items:center;gap:8px">
+            <h2 style="font-family:var(--font-display);font-size:18px;margin:0">Catalog Sync &amp; Activity Feed</h2>
+            <span class="badge verified" id="chlogStatusBadge">Up to Date</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button id="btnChangelogRefresh" class="primary small">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+              <span>Check Upstream Diff</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="changelog-grid" id="chlogGrid">
+          <section class="stat-card" id="cardAdded"><h3>Newly Added Primitives</h3><div id="chlogAdded"></div></section>
+          <section class="stat-card" id="cardRemoved"><h3>Removed from Registry</h3><div id="chlogRemoved"></div></section>
+          <section class="stat-card wide" id="cardUpdated"><h3>Modified Definitions</h3><div id="chlogUpdated"></div></section>
+        </div>
+
+        <!-- Rich Upstream Release Timeline Feed (Requerimiento 4) -->
+        <section class="timeline-section" id="timelineSection">
+          <div class="timeline-head">
+            <h3 style="font-family:var(--font-display);font-size:15px;text-transform:uppercase;letter-spacing:0.06em;color:#aaa;margin:0">Latest Upstream Catalog Releases &amp; Commits</h3>
+            <span class="muted small" style="color:#777">From official registry repository</span>
+          </div>
+          <div id="chlogTimeline" class="timeline-list"></div>
+        </section>
       </div>
 
-      <!-- Health tab -->
+      <!-- Health tab (Requerimiento 3) -->
       <div id="tab-health" class="tab-pane" role="tabpanel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;max-width:900px">
+        <!-- System Health KPI Banner -->
+        <div class="health-kpi-banner" id="healthKpiBanner">
+          <div class="health-kpi-status">
+            <div class="health-kpi-indicator" id="healthGlobalIndicator"></div>
+            <div>
+              <div class="health-kpi-title" id="healthGlobalTitle">All Systems Operational</div>
+              <div class="health-kpi-subtitle" id="healthGlobalSubtitle">Runtime environment, storage, and CLI tooling verified</div>
+            </div>
+          </div>
+          <div class="health-kpi-metrics">
+            <div class="health-metric-box">
+              <span class="health-metric-val" id="healthChecksCount">6/6</span>
+              <span class="health-metric-lbl">Checks Passed</span>
+            </div>
+            <div class="health-metric-box">
+              <span class="health-metric-val" id="healthUptimeVal">0m</span>
+              <span class="health-metric-lbl">Process Uptime</span>
+            </div>
+            <div class="health-metric-box">
+              <span class="health-metric-val" id="healthMemVal">0 MB</span>
+              <span class="health-metric-lbl">Node Heap / RSS</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:24px 0 16px 0;max-width:1000px">
           <div>
-            <h2 style="font-family:var(--font-display);font-size:20px;margin:0 0 4px 0">System &amp; CLI Diagnostics</h2>
-            <p style="color:#888;margin:0;font-size:13px">Health status of runtime environment, CLI binaries, and local storage.</p>
+            <h2 style="font-family:var(--font-display);font-size:18px;margin:0 0 4px 0">Diagnostic Probes &amp; Storage Matrix</h2>
+            <p style="color:#888;margin:0;font-size:13px">Live telemetry, toolchain paths, and multi-root storage breakdown.</p>
           </div>
           <div style="display:flex;gap:8px">
             <button id="btnCopySysInfo" class="ghost small">Copy Diagnostics</button>
-            <button id="btnHealthRefresh" class="ghost small">Run Probes</button>
+            <button id="btnHealthRefresh" class="primary small">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+              <span>Run Probes</span>
+            </button>
           </div>
         </div>
-        <div id="healthList" class="health-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(380px, 1fr));gap:16px;max-width:900px"></div>
+
+        <div id="healthList" class="health-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(420px, 1fr));gap:16px;max-width:1000px"></div>
       </div>
     </section>
   </main>

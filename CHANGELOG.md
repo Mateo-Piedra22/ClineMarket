@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-08-30
+
+### Added
+- **Persistent Daily Rotating File Logging**: Added `initFileLogging` in `lib/logger.js` writing to `data/logs/clinemarket-YYYY-MM-DD.log` with ANSI escape sequence stripping (`stripAnsi`) and automatic 14-day log retention pruning (`pruneOldLogs`).
+- **ANSI Terminal Branding & CLI Engine**: Overhauled `bin/cline-marketplace.js` and `server.js` with Navigate brand palette ANSI output (`#c7ff69` acid lime, `#7a78ff` iris, `#00a652` toxic green), telemetry info (active repository, git branch, short commit sha, RAM metrics, uptime, storage roots), and dedicated subcommands (`status`, `health`, `list`, `refresh`, `update`, `--help`).
+- **REST Endpoints**:
+  - `GET /api/logs` returning recent in-memory and disk log lines with configurable limit.
+  - `POST /api/workspaces/validate` validating workspace directory existence, `.git` repository status, and `.cline` configurations.
+- **Upstream Release Timeline & Activity Stream**: Synthesized `recentReleases` in `/api/changelog` from `catalog.json` and `data/upstream-meta.json` with commit authors, avatars, relative/absolute timestamps, tags, and 1-click "Details" and "Install" triggers.
+- **Changelog Sync Status Banner**: Compact visual alert (`.chlog-sync-banner`) displaying up-to-date registry state and inline diff trigger when zero diffs are detected.
+- **Deep CSS & UI Polish**:
+  - Dark customized Webkit scrollbars (`::-webkit-scrollbar`).
+  - Spring-like modal scale-in / fade-in animations with `backdrop-filter: blur(10px)`.
+  - Accessible focus rings (`:focus-visible` with 2px acid lime outline).
+  - Floating bulk actions toolbar dock (`.bulk-bar`).
+  - Environment variable schema tables in detail modals (`.env-table`).
+
+---
+
 ## [1.1.0] - 2026-08-30
 
 ### Added

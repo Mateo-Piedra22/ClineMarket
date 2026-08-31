@@ -70,6 +70,18 @@ Deep view of any primitive showing official install commands, environment variab
 
 <img width="1600" alt="Detail Modal View" src="docs/screenshot-detail.png" />
 
+### Project Workspace Control & Stack Engine
+
+Dynamic workspace supervisor showing active Git repository, branch with short commit hash, active package manager, workspace-local primitive counts, global vs project scope toggle, and live directory path validation.
+
+<img width="1600" alt="Project Workspace Control Card View" src="docs/screenshot-workspace.png" />
+
+### Upstream Changelog & Activity Feed
+
+Real-time upstream synchronization feed featuring top KPI metric cards (Added, Removed, Updated, Catalog Version, Last Sync), interactive visual diff inspection, and upstream release timeline with direct installation triggers.
+
+<img width="1600" alt="Changelog & Activity Feed View" src="docs/screenshot-changelog.png" />
+
 ### System Statistics
 
 Breakdown by primitive type, top author distributions, commit freshness histograms, and local installation coverage.
@@ -78,7 +90,7 @@ Breakdown by primitive type, top author distributions, commit freshness histogra
 
 ### System & CLI Health Diagnostics
 
-Comprehensive runtime probes across Node runtime, Cline CLI, GitHub CLI, local directories, and catalog freshness.
+Comprehensive runtime probes with top KPI operational banner, live Node Heap & RSS RAM gauge, process uptime counter, toolchain executable paths, and multi-root storage breakdown with individual copy actions.
 
 <img width="1600" alt="Health Diagnostics View" src="docs/screenshot-health.png" />
 
@@ -189,7 +201,7 @@ cline-marketplace
 
 ## Command Line Interface
 
-The `cline-marketplace` executable provides direct control over the service:
+The `cline-marketplace` executable provides direct control over the local control plane:
 
 ```bash
 # Start server and automatically launch the default browser
@@ -201,8 +213,14 @@ cline-marketplace --no-open
 # Specify custom port override
 cline-marketplace --port 5200
 
-# Check for updates and pull latest changes from GitHub
-cline-marketplace update
+# Inspect local server status, catalog counts, and active storage roots
+cline-marketplace status
+
+# Run system environment, CLI toolchain, and storage diagnostics
+cline-marketplace health
+
+# List all discovered and installed primitives
+cline-marketplace list
 
 # Full catalog synchronization with GitHub commit timestamps
 cline-marketplace refresh
@@ -210,8 +228,11 @@ cline-marketplace refresh
 # Fast catalog synchronization (skips commit metadata pass)
 cline-marketplace refresh --catalog
 
-# Display command help
-cline-marketplace help
+# Check for updates and pull latest changes from upstream
+cline-marketplace update
+
+# Display interactive reference manual
+cline-marketplace --help
 ```
 
 ---
@@ -239,7 +260,8 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 | `GET` | `/api/installed` | Executes a filesystem probe across `~/.cline` and VS Code configs, returning reconciled state. | `?cwd=/path/to/project` |
 | `GET` | `/api/status` | Returns runtime health, Node version, memory usage, uptime, detected `cline` path, and storage roots. | None |
 | `GET` | `/api/version` | Returns current package version and app metadata. | None |
-| `GET` | `/api/context` | Runs stack heuristics against a workspace directory and returns ranked recommendations. | `?cwd=/path/to/project` |
+| `GET` | `/api/context` | Runs stack heuristics against a workspace directory and returns active git branch, commit hash, and ranked toolchains. | `?cwd=/path/to/project` |
+| `POST` | `/api/workspaces/validate` | Validates directory existence, `.git` repository, package manager lockfiles, and `.cline` configurations. | `{"path": "/path/to/project"}` |
 | `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal", "scope": "global"}` |
 | `POST` | `/api/uninstall` | Invokes `cline <type> uninstall <id>` and updates local registry records. | `{"type": "plugin", "id": "goal"}` |
 | `POST` | `/api/bulk` | Executes batch `install`, `uninstall`, `watch`, or `unwatch` across up to 30 items. | `{"action": "install", "items": [{"type": "plugin", "id": "goal"}]}` |
@@ -251,8 +273,9 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 | `DELETE` | `/api/mark/:type/:id` | Removes a primitive from manual records. | None |
 | `DELETE` | `/api/forget/:type/:id` | Forgets an entry from local storage. | None |
 | `GET` | `/api/stats` | Aggregates category counts, top authors, freshness histograms, and coverage metrics. | None |
-| `GET` | `/api/changelog` | Returns diff between current catalog and previous snapshot (`catalog-prev.json`). | None |
-| `GET` | `/api/health` | Executes async diagnostic probes (`node`, `cline`, `gh`, `storage`, `catalog`, `metadata`). | None |
+| `GET` | `/api/changelog` | Returns diff against previous catalog and synthesized upstream release timeline stream. | None |
+| `GET` | `/api/health` | Executes async diagnostic probes (`node`, `cline`, `gh`, `git`, `storage`, `catalog`, `metadata`). | None |
+| `GET` | `/api/logs` | Returns recent server execution logs for diagnostics and debugging. | `?limit=100` |
 | `GET` | `/api/export` | Generates a downloadable JSON backup of all installed primitives. | None |
 | `POST` | `/api/import` | Restores installed primitives from a JSON backup with type/id sanitization. | `{"installed": [...]}` |
 | `POST` | `/api/refresh` | Triggers background upstream catalog synchronization in-process. | None |

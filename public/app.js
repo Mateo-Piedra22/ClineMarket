@@ -22,6 +22,8 @@ const state = {
     hideDrift: false,
     sortBy: "updated",
   },
+  showAllTags: false,
+  tagSearchQuery: "",
   contextCwd: localStorage.getItem("clineMarketplace.contextCwd") || "",
 };
 
@@ -717,20 +719,107 @@ async function renderChangelogTab() {
     $("#chlogAddedCount").textContent = cl.added.length;
     $("#chlogRemovedCount").textContent = cl.removed.length;
     $("#chlogUpdatedCount").textContent = cl.updated.length;
+    $("#chlogCatalogTotal").textContent = cl.catalogTotal || state.catalog?.entries?.length || 0;
+    $("#chlogLastSync").textContent = cl.lastSync ? relativeTime(cl.lastSync) : "Recent";
 
-    $("#chlogAdded").innerHTML = cl.added.length
-      ? cl.added.map((e) => `<div class="changelog-item"><strong>${escapeHtml(e.name)}</strong> <span class="type-tag ${e.type}">${escapeHtml(e.type)}</span><div class="meta">${escapeHtml(e.tagline || "")}</div></div>`).join("")
-      : `<div class="muted small" style="padding:10px">No new entries since last refresh.</div>`;
+    const hasDiff = cl.added.length > 0 || cl.removed.length > 0 || cl.updated.length > 0;
+    const statusBadge = $("#chlogStatusBadge");
+    if (statusBadge) {
+      statusBadge.textContent = hasDiff ? `${cl.added.length + cl.updated.length} Changes Detected` : "Up to Date";
+      statusBadge.className = "badge " + (hasDiff ? "featured" : "verified");
+    }
 
-    $("#chlogRemoved").innerHTML = cl.removed.length
-      ? cl.removed.map((e) => `<div class="changelog-item"><strong>${escapeHtml(e.name)}</strong> <span class="type-tag">${escapeHtml(e.type)}</span></div>`).join("")
-      : `<div class="muted small" style="padding:10px">Nothing removed.</div>`;
+    const grid = $("#chlogGrid");
+    if (grid) {
+      if (hasDiff) {
+        grid.style.display = "grid";
+        $("#chlogAdded").innerHTML = cl.added.length
+          ? cl.added.map((e) => `<div class="changelog-item">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <strong>${escapeHtml(e.name)}</strong>
+                <span class="type-tag ${e.type}">${escapeHtml(e.type)}</span>
+              </div>
+              <div class="meta" style="margin:4px 0 8px 0;color:#aaa">${escapeHtml(e.tagline || e.description || "")}</div>
+              <button class="primary small" onclick="runInstall({type:'${escapeHtml(e.type)}',id:'${escapeHtml(e.id)}',name:'${escapeHtml(e.name)}'})">Install</button>
+            </div>`).join("")
+          : `<div class="muted small" style="padding:12px;color:#777">No newly added entries in current diff snapshot.</div>`;
 
-    $("#chlogUpdated").innerHTML = cl.updated.length
-      ? cl.updated.map((u) => `<div class="changelog-item"><strong>${escapeHtml(u.after.name)}</strong> <span class="type-tag ${u.after.type}">${escapeHtml(u.after.type)}</span><div class="meta">Tagline: "${escapeHtml(u.before.tagline || "")}" → "${escapeHtml(u.after.tagline || "")}"</div></div>`).join("")
-      : `<div class="muted small" style="padding:10px">No content changes detected.</div>`;
+        $("#chlogRemoved").innerHTML = cl.removed.length
+          ? cl.removed.map((e) => `<div class="changelog-item"><strong>${escapeHtml(e.name)}</strong> <span class="type-tag">${escapeHtml(e.type)}</span></div>`).join("")
+          : `<div class="muted small" style="padding:12px;color:#777">No entries removed from official registry.</div>`;
+
+        $("#chlogUpdated").innerHTML = cl.updated.length
+          ? cl.updated.map((u) => `<div class="changelog-item">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <strong>${escapeHtml(u.after.name)}</strong>
+                <span class="type-tag ${u.after.type}">${escapeHtml(u.after.type)}</span>
+              </div>
+              <div class="meta" style="margin-top:6px;color:#aaa">Tagline: "${escapeHtml(u.before.tagline || "")}" → "${escapeHtml(u.after.tagline || "")}"</div>
+            </div>`).join("")
+          : `<div class="muted small" style="padding:12px;color:#777">No modified primitive definitions detected.</div>`;
+      } else {
+        grid.style.display = "block";
+        grid.innerHTML = `
+          <div class="chlog-sync-banner">
+            <div class="chlog-sync-banner-info">
+              <div class="chlog-sync-banner-icon">✓</div>
+              <div>
+                <strong style="font-size:15px;color:var(--color-warm-cream)">Official Registry Synchronized &amp; Up to Date</strong>
+                <div class="muted small" style="margin-top:2px;color:#888">All ${cl.catalogTotal || 250}+ primitives match the upstream catalog definition. Zero divergence detected.</div>
+              </div>
+            </div>
+            <button class="ghost small" style="border:1px solid #3a3a3a" onclick="document.getElementById('btnChangelogRefresh')?.click()">
+              <svg class="ui-icon" aria-hidden="true"><use href="#icon-refresh"></use></svg>
+              <span>Refresh Diff</span>
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Render Timeline of Latest Releases & Commits
+    const timeline = cl.recentReleases || [];
+    const tHost = $("#chlogTimeline");
+    if (tHost) {
+      if (timeline.length > 0) {
+        tHost.innerHTML = timeline.map((it) => {
+          const dateStr = it.updatedAt || it.lastCommit?.committedAt || null;
+          const relDate = dateStr ? relativeTime(dateStr) : "Recent";
+          const author = it.author?.name || "Official Registry";
+          const initial = author.slice(0, 1).toUpperCase();
+          const tags = (it.tags || []).slice(0, 4).map((tg) => `<span class="chip" style="font-size:10px;padding:1px 6px">${escapeHtml(tg)}</span>`).join("");
+
+          return `<div class="timeline-card">
+            <div class="timeline-card-head">
+              <div class="timeline-author-row">
+                <div class="timeline-avatar">${initial}</div>
+                <div>
+                  <div class="timeline-author-name">${escapeHtml(author)}</div>
+                  <div class="timeline-date">${relDate} ${dateStr ? `· ${formatDate(dateStr)}` : ""}</div>
+                </div>
+              </div>
+              <span class="type-tag ${it.type}">${escapeHtml(it.type)}</span>
+            </div>
+            <div>
+              <div class="timeline-title">${escapeHtml(it.name)}</div>
+              <div class="timeline-tagline">${escapeHtml(it.tagline || it.description || "")}</div>
+            </div>
+            <div class="timeline-footer">
+              <div class="timeline-tags">${tags}</div>
+              <div style="display:flex;gap:6px">
+                <button class="ghost small" onclick="openDetailByKey('${escapeHtml(it.type)}:${escapeHtml(it.id)}')">Details</button>
+                <button class="primary small" onclick="runInstall({type:'${escapeHtml(it.type)}',id:'${escapeHtml(it.id)}',name:'${escapeHtml(it.name)}'})">Install</button>
+              </div>
+            </div>
+          </div>`;
+        }).join("");
+      } else {
+        tHost.innerHTML = `<div class="muted small" style="padding:20px;text-align:center">No timeline activity available.</div>`;
+      }
+    }
   } catch (err) {
-    $("#chlogAdded").textContent = "Failed to load changelog: " + err.message;
+    const grid = $("#chlogGrid");
+    if (grid) grid.innerHTML = `<div class="muted small" style="color:#ff6d6d">Failed to load changelog: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -738,7 +827,8 @@ const PROBE_TITLES = {
   node: "Node.js Runtime",
   cline: "Cline CLI Tool",
   gh: "GitHub CLI Tool",
-  "cline-storage": "Local Primitive Storage",
+  git: "Git Version Control",
+  "cline-storage": "Local Primitive Storage Breakdown",
   catalog: "Marketplace Catalog",
   metadata: "Commit Metadata Cache",
 };
@@ -746,20 +836,72 @@ const PROBE_TITLES = {
 async function renderHealthTab() {
   try {
     const h = await getJson("/api/health");
+
+    // Update KPI Banner (Requerimiento 3)
+    const passedCount = h.checks.filter((c) => c.ok).length;
+    const totalCount = h.checks.length;
+    const allOk = passedCount === totalCount;
+
+    const indicator = $("#healthGlobalIndicator");
+    if (indicator) indicator.className = "health-kpi-indicator" + (allOk ? "" : " bad");
+
+    const gTitle = $("#healthGlobalTitle");
+    if (gTitle) gTitle.textContent = allOk ? "All Systems Operational" : "Action Required / Issues Detected";
+
+    const gSub = $("#healthGlobalSubtitle");
+    if (gSub) gSub.textContent = allOk
+      ? "Runtime environment, storage roots, and CLI toolchain verified"
+      : `${totalCount - passedCount} diagnostic check(s) require attention`;
+
+    $("#healthChecksCount").textContent = `${passedCount}/${totalCount}`;
+    $("#healthUptimeVal").textContent = h.system?.uptimeFormatted || `${h.system?.uptime || 0}s`;
+    if (h.system?.memory) {
+      $("#healthMemVal").textContent = `${h.system.memory.heapUsedMb} / ${h.system.memory.rssMb} MB`;
+    }
+
     $("#healthList").innerHTML = h.checks.map((c) => {
       const cls = c.ok ? "ok" : "bad";
       const iconSvg = c.ok
         ? `<svg class="ui-icon" style="width:16px;height:16px" aria-hidden="true"><use href="#icon-check"></use></svg>`
         : `<svg class="ui-icon" style="width:16px;height:16px" aria-hidden="true"><use href="#icon-close"></use></svg>`;
       const title = PROBE_TITLES[c.name] || c.name;
-      
-      let detailText = escapeHtml(String(c.detail || c.error || ""));
-      if (c.counts) {
-        detailText += ` · ${c.counts.plugins} plugins, ${c.counts.skills} skills, ${c.counts.mcps} mcps`;
-      }
-      
       const badgeText = c.ok ? "VERIFIED" : "ISSUE";
       const badgeClass = c.ok ? "verified" : "drift";
+
+      // Specialized storage breakdown for cline-storage (Image 3 fix)
+      if (c.name === "cline-storage" && Array.isArray(c.rootsDetail)) {
+        const rows = c.rootsDetail.map((r) => `
+          <div class="health-storage-row">
+            <div style="display:flex;align-items:center;gap:6px;min-width:0">
+              <span class="type-dot ${r.exists ? "plugin" : ""}" style="${r.exists ? "" : "background:#555"}"></span>
+              <span class="health-storage-path" title="${escapeHtml(r.path)}">${escapeHtml(r.path)}</span>
+            </div>
+            <div class="health-storage-badges">
+              ${r.exists ? `<span class="badge featured" style="font-size:9px">${r.plugins}p · ${r.skills}s · ${r.mcps}m</span>` : `<span class="badge drift" style="font-size:9px">Not Found</span>`}
+              <button type="button" class="health-copy-btn" onclick="navigator.clipboard.writeText('${escapeHtml(r.path).replace(/\\/g, "\\\\")}');toast('Copied','Storage path copied','success')">Copy</button>
+            </div>
+          </div>
+        `).join("");
+
+        return `<div class="health-item ${cls}" style="grid-column:1 / -1">
+          <div class="health-item-head">
+            <div class="health-item-title">
+              <div class="health-icon-box">${iconSvg}</div>
+              <div>
+                <div class="name">${escapeHtml(title)}</div>
+                <div class="muted small" style="color:#888">${c.counts?.total || 0} total active primitives discovered across ${c.roots?.length || 0} storage locations</div>
+              </div>
+            </div>
+            <span class="badge ${badgeClass}">${badgeText}</span>
+          </div>
+          <div class="health-storage-list">${rows}</div>
+        </div>`;
+      }
+
+      let detailText = escapeHtml(String(c.detail || c.error || ""));
+      if (c.counts && c.name !== "cline-storage") {
+        detailText += ` · ${c.counts.plugins || 0} plugins, ${c.counts.skills || 0} skills, ${c.counts.mcps || 0} mcps`;
+      }
 
       return `<div class="health-item ${cls}">
         <div class="health-item-head">
@@ -815,15 +957,50 @@ function render() {
 function renderTagFilter() {
   const host = $("#tagFilter");
   const clearBtn = $("#btnClearTags");
+  const totalBadge = $("#tagTotalBadge");
+  const toggleBtn = $("#btnToggleAllTags");
   if (!host) return;
   host.innerHTML = "";
 
-  const tags = state.catalog?.tags || [];
+  const allTags = state.catalog?.tags || [];
+  if (totalBadge) totalBadge.textContent = allTags.length;
+
   if (clearBtn) {
     clearBtn.classList.toggle("hidden", state.filter.tags.size === 0);
   }
 
-  for (const t of tags.slice(0, 40)) {
+  const query = (state.tagSearchQuery || "").toLowerCase().trim();
+
+  // Smart tag filtering: Filter out noisy 1-off tags unless searched for
+  let candidateTags = allTags;
+  if (query) {
+    candidateTags = allTags.filter((t) => {
+      const tagId = (typeof t === "string" ? t : (t.id || t.label || "")).toLowerCase();
+      return tagId.includes(query);
+    });
+  } else if (!state.showAllTags) {
+    candidateTags = allTags.filter((t) => {
+      const tagId = typeof t === "string" ? t : (t.id || t.label || "");
+      const count = typeof t === "object" && t.count !== undefined ? t.count : 2;
+      return count >= 2 || state.filter.tags.has(tagId);
+    }).slice(0, 14);
+  }
+
+  if (toggleBtn) {
+    if (query || allTags.length <= 14) {
+      toggleBtn.classList.add("hidden");
+    } else {
+      toggleBtn.classList.remove("hidden");
+      toggleBtn.textContent = state.showAllTags ? "Show top tags (▲)" : `Show all ${allTags.length} tags (+)`;
+    }
+  }
+
+  if (!candidateTags.length) {
+    host.innerHTML = `<span class="muted small" style="padding:6px 0">No matching tags</span>`;
+    return;
+  }
+
+  for (const t of candidateTags) {
     const tagId = typeof t === "string" ? t : (t.id || t.label || "");
     const tagLabel = typeof t === "string" ? t : (t.label || t.id || "");
     const count = typeof t === "object" && t.count !== undefined ? t.count : null;
@@ -878,16 +1055,70 @@ function updateStatusPills() {
 function renderContextSummary() {
   const ctx = state.context;
   const host = $("#contextSummary");
-  if (!ctx) { host.textContent = "detecting stack…"; return; }
-  if (ctx.error) { host.innerHTML = `<span class="muted small">error: ${escapeHtml(ctx.error)}</span>`; return; }
+  const wsBadge = $("#wsStatusBadge");
+  if (!host) return;
 
-  const chips = [];
-  if (ctx.repo) chips.push(`<span class="chip" style="font-size:10px;padding:2px 8px">${escapeHtml(ctx.repo.owner)}/${escapeHtml(ctx.repo.name)}</span>`);
-  for (const l of ctx.languages || []) chips.push(`<span class="chip" style="font-size:10px;padding:2px 8px">${escapeHtml(l)}</span>`);
-  for (const f of (ctx.frameworks || []).slice(0, 6)) chips.push(`<span class="chip" style="font-size:10px;padding:2px 8px">${escapeHtml(f)}</span>`);
-  if (!chips.length) chips.push(`<span class="muted small">no stack detected</span>`);
+  if (!ctx) {
+    host.innerHTML = `<span class="muted small">detecting stack…</span>`;
+    if (wsBadge) { wsBadge.textContent = "Detecting"; wsBadge.className = "workspace-status-badge"; }
+    return;
+  }
+  if (ctx.error) {
+    host.innerHTML = `<span class="muted small" style="color:var(--danger)">error: ${escapeHtml(ctx.error)}</span>`;
+    if (wsBadge) { wsBadge.textContent = "Error"; wsBadge.className = "workspace-status-badge drift"; }
+    return;
+  }
 
-  host.innerHTML = chips.join(" ");
+  if (wsBadge) {
+    wsBadge.textContent = ctx.repo ? "Git Repo" : "Local Dir";
+    wsBadge.className = "workspace-status-badge" + (ctx.repo ? "" : " local");
+  }
+
+  const badges = [];
+
+  // 1. Repo name & link
+  if (ctx.repo) {
+    badges.push(`<span class="ws-badge repo" title="Git Remote Repository">
+      <svg class="ui-icon" style="width:11px;height:11px" aria-hidden="true"><use href="#icon-github"></use></svg>
+      ${escapeHtml(ctx.repo.owner)}/${escapeHtml(ctx.repo.name)}
+    </span>`);
+  }
+
+  // 2. Active Git branch & commit
+  if (ctx.branch) {
+    badges.push(`<span class="ws-badge branch" title="Active Git Branch">
+      ⎇ ${escapeHtml(ctx.branch)}${ctx.commit ? ` (${escapeHtml(ctx.commit)})` : ""}
+    </span>`);
+  }
+
+  // 3. Package manager
+  if (ctx.packageManager) {
+    badges.push(`<span class="ws-badge" style="background:#222;color:var(--color-schoolbus-yellow)" title="Package Manager">
+      ⚡ ${escapeHtml(ctx.packageManager)}
+    </span>`);
+  }
+
+  // 4. Local workspace-specific primitives count
+  if (ctx.localPrimitives && ctx.localPrimitives.total > 0) {
+    badges.push(`<span class="ws-badge" style="background:rgba(0,166,82,0.15);color:var(--color-toxic-green);border-color:rgba(0,166,82,0.3)" title="Workspace Local Primitives">
+      📦 ${ctx.localPrimitives.total} local
+    </span>`);
+  }
+
+  // 5. Detected languages & frameworks
+  for (const l of ctx.languages || []) {
+    badges.push(`<span class="ws-badge stack">${escapeHtml(l)}</span>`);
+  }
+  for (const f of (ctx.frameworks || []).slice(0, 6)) {
+    if (f !== "git") badges.push(`<span class="ws-badge stack">${escapeHtml(f)}</span>`);
+  }
+
+  if (!badges.length) {
+    badges.push(`<span class="muted small">no stack detected</span>`);
+  }
+
+  host.innerHTML = badges.join(" ");
+
   const rec = (ctx.recommendations || []).length;
   $("#recBadge").textContent = rec;
   $("#recBadge").hidden = rec === 0;
@@ -1350,8 +1581,21 @@ function wireFilters() {
     render();
   });
 
+  $("#tagSearchInput")?.addEventListener("input", (e) => {
+    state.tagSearchQuery = e.target.value;
+    renderTagFilter();
+  });
+
+  $("#btnToggleAllTags")?.addEventListener("click", () => {
+    state.showAllTags = !state.showAllTags;
+    renderTagFilter();
+  });
+
   $("#btnClearTags")?.addEventListener("click", () => {
     state.filter.tags.clear();
+    state.tagSearchQuery = "";
+    const inp = $("#tagSearchInput");
+    if (inp) inp.value = "";
     renderTagFilter();
     render();
   });
@@ -1413,6 +1657,9 @@ async function wireWorkspaceScope() {
   const scopeWorkspace = $("#scopeWorkspaceBtn");
   const wsSelect = $("#recentWorkspacesSelect");
   const contextCwdInput = $("#contextCwd");
+  const scopeHelperText = $("#scopeHelperText");
+  const btnValidate = $("#btnValidateWorkspace");
+  const btnCurrent = $("#btnBrowseCurrentDir");
 
   state.installScope = localStorage.getItem("clineMarketplace.installScope") || "global";
   updateScopeButtons();
@@ -1420,13 +1667,20 @@ async function wireWorkspaceScope() {
   function updateScopeButtons() {
     if (scopeGlobal) scopeGlobal.classList.toggle("active", state.installScope === "global");
     if (scopeWorkspace) scopeWorkspace.classList.toggle("active", state.installScope === "workspace");
+    if (scopeHelperText) {
+      if (state.installScope === "workspace") {
+        scopeHelperText.innerHTML = `Installs for project into <code>./.cline</code>`;
+      } else {
+        scopeHelperText.innerHTML = `Installs globally into <code>~/.cline</code>`;
+      }
+    }
   }
 
   scopeGlobal?.addEventListener("click", () => {
     state.installScope = "global";
     localStorage.setItem("clineMarketplace.installScope", "global");
     updateScopeButtons();
-    toast("Scope changed", "Primitives will install globally into your home storage", "info");
+    toast("Scope changed", "Primitives will install globally into ~/.cline", "info");
   });
 
   scopeWorkspace?.addEventListener("click", () => {
@@ -1450,7 +1704,7 @@ async function wireWorkspaceScope() {
     for (const w of workspaces) {
       const opt = document.createElement("option");
       opt.value = w.path;
-      opt.textContent = `${w.name} (${w.path})`;
+      opt.textContent = `${w.name} — ${w.path}`;
       if (w.path === state.contextCwd) opt.selected = true;
       wsSelect.appendChild(opt);
     }
@@ -1468,6 +1722,42 @@ async function wireWorkspaceScope() {
     refreshContext();
     refreshInstalled();
     toast("Workspace switched", p, "success");
+  });
+
+  btnValidate?.addEventListener("click", async () => {
+    const val = (contextCwdInput?.value || "").trim();
+    if (!val) {
+      toast("Workspace Path", "Please enter a directory path to validate", "warn");
+      return;
+    }
+    try {
+      const res = await postJson("/api/workspaces/validate", { path: val });
+      if (res && res.exists) {
+        toast("Valid Workspace", `Found: ${res.name} ${res.isGit ? "(Git Repo)" : ""}`, "success");
+        state.contextCwd = res.path;
+        if (contextCwdInput) contextCwdInput.value = res.path;
+        localStorage.setItem("clineMarketplace.contextCwd", res.path);
+        await postJson("/api/workspaces/recent", { path: res.path });
+        const s = await getJson("/api/settings");
+        if (s?.recentWorkspaces) renderRecentWorkspaces(s.recentWorkspaces);
+        refreshContext();
+        refreshInstalled();
+      } else {
+        toast("Invalid Directory", "Path does not exist on disk", "error");
+      }
+    } catch (err) {
+      toast("Validation Error", err.message, "error");
+    }
+  });
+
+  btnCurrent?.addEventListener("click", () => {
+    state.contextCwd = "";
+    if (contextCwdInput) contextCwdInput.value = "";
+    localStorage.removeItem("clineMarketplace.contextCwd");
+    if (wsSelect) wsSelect.value = "";
+    refreshContext();
+    refreshInstalled();
+    toast("Workspace Reset", "Switched back to default repository root", "info");
   });
 }
 
@@ -1627,6 +1917,21 @@ function wireActions() {
     }
   });
 
+  $("#btnChangelogRefresh")?.addEventListener("click", async () => {
+    const btn = $("#btnChangelogRefresh");
+    if (btn) btn.disabled = true;
+    try {
+      toast("Checking Upstream Diff", "Pulling latest catalog and checking modifications...", "info");
+      await postJson("/api/refresh", {});
+      await renderChangelogTab();
+      toast("Changelog Updated", "Upstream diff check completed", "success");
+    } catch (err) {
+      toast("Diff Check Failed", String(err.message || err), "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
   $("#btnExport")?.addEventListener("click", () => {
     window.location.href = "/api/export";
   });
@@ -1741,6 +2046,13 @@ async function checkUpdate() {
     }
   } catch {}
 }
+
+window.runInstall = (entry) => runInstall(entry);
+window.openDetailByKey = (key) => {
+  const e = state.catalog?.entries?.find((x) => x.key === key || `${x.type}:${x.id}` === key);
+  if (e) openDetail(e);
+};
+window.openDetail = openDetail;
 
 (async function init() {
   wireFilters();

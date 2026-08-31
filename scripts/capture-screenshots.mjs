@@ -196,7 +196,17 @@ async function capture() {
     writeFileSync("docs/screenshot-health.png", Buffer.from(healthShot.data, "base64"));
     console.log("Saved docs/screenshot-health.png");
 
-    // 5. Switch back to Catalog and Open Detail Modal
+    // 5. Switch to Changelog Tab
+    console.log("Switching to Changelog tab...");
+    await send("Runtime.evaluate", {
+      expression: `document.querySelector('.tab[data-tab="changelog"]').click();`,
+    });
+    await sleep(1000);
+    const chlogShot = await send("Page.captureScreenshot", { format: "png" });
+    writeFileSync("docs/screenshot-changelog.png", Buffer.from(chlogShot.data, "base64"));
+    console.log("Saved docs/screenshot-changelog.png");
+
+    // 6. Switch back to Catalog and Open Detail Modal
     console.log("Opening Detail Modal...");
     await send("Runtime.evaluate", {
       expression: `
@@ -211,6 +221,20 @@ async function capture() {
     const detailShot = await send("Page.captureScreenshot", { format: "png" });
     writeFileSync("docs/screenshot-detail.png", Buffer.from(detailShot.data, "base64"));
     console.log("Saved docs/screenshot-detail.png");
+
+    // 7. Capture Workspace Control Card in Sidebar
+    console.log("Capturing Project Workspace Sidebar Focus...");
+    await send("Runtime.evaluate", {
+      expression: `
+        document.querySelector('#detailClose')?.click();
+        const wsSection = document.querySelector('#projectWorkspaceSection');
+        if (wsSection) wsSection.scrollIntoView({ behavior: 'instant', block: 'center' });
+      `,
+    });
+    await sleep(600);
+    const wsShot = await send("Page.captureScreenshot", { format: "png" });
+    writeFileSync("docs/screenshot-workspace.png", Buffer.from(wsShot.data, "base64"));
+    console.log("Saved docs/screenshot-workspace.png");
 
     ws.close();
     console.log("==> ALL SCREENSHOTS CAPTURED SUCCESSFULLY!");

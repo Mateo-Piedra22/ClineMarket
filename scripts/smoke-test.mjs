@@ -184,7 +184,7 @@ async function main() {
     assert.ok(Array.isArray(exportData.installed), "exportData.installed must be an array");
     console.log(`  export records: ${exportData.installed.length}`);
 
-    console.log("\n==> Testing /api/settings & /api/workspaces/recent");
+    console.log("\n==> Testing /api/settings & /api/workspaces/recent & /api/workspaces/validate");
     const setRes = await postJson(`${BASE}/api/settings`, { defaultScope: "workspace", themeContrast: "high" });
     assert.strictEqual(setRes.ok, true, "settings update must return ok: true");
     assert.strictEqual(setRes.json.settings.defaultScope, "workspace");
@@ -196,7 +196,16 @@ async function main() {
     const wsGood = await postJson(`${BASE}/api/workspaces/recent`, { path: root });
     assert.strictEqual(wsGood.ok, true);
     assert.ok(Array.isArray(wsGood.json.recentWorkspaces));
-    console.log("  [✓] settings and recent workspaces endpoints operational");
+
+    const valBad = await postJson(`${BASE}/api/workspaces/validate`, { path: "nonexistent-dir-12345" });
+    assert.strictEqual(valBad.status, 404);
+    assert.strictEqual(valBad.json.exists, false);
+
+    const valGood = await postJson(`${BASE}/api/workspaces/validate`, { path: root });
+    assert.strictEqual(valGood.ok, true);
+    assert.strictEqual(valGood.json.exists, true);
+    assert.strictEqual(typeof valGood.json.name, "string");
+    console.log("  [✓] settings, recent workspaces, and validate endpoints operational");
 
     console.log("\n==> Testing /api/watchlist (POST, GET, TOGGLE, DELETE)");
     const wlAdd = await postJson(`${BASE}/api/watchlist`, { type: "plugin", id: "goal" });

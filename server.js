@@ -17,6 +17,12 @@ if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true });
 }
 
+// Initialize Daily Rotating Persistent File Logging
+logger.initFileLogging({
+  logDir: process.env.CLINEMARKET_LOG_DIR || join(dataDir, "logs"),
+  retentionDays: Number(process.env.LOG_RETENTION_DAYS || 14),
+});
+
 const CATALOG_PATH = join(root, "catalog.json");
 const PREV_CATALOG_PATH = join(dataDir, "catalog-prev.json");
 const META_PATH = join(dataDir, "upstream-meta.json");
@@ -158,12 +164,17 @@ export async function startServer() {
   const server = app.listen(port, HOST, () => {
     const url = `http://${HOST}:${port}`;
     console.log("");
-    console.log("┌──────────────────────────────────────────────────────────┐");
-    console.log(`│  \x1b[1m\x1b[32mCline Marketplace Local Control Plane\x1b[0m                   │`);
-    console.log(`│  \x1b[36mLocal URL:\x1b[0m   ${url.padEnd(42)} │`);
-    console.log(`│  \x1b[33mCatalog:\x1b[0m     250+ Community & Custom Primitives         │`);
-    console.log(`│  \x1b[35mSecurity:\x1b[0m    Defense-in-depth on 127.0.0.1 (Loopback)   │`);
-    console.log("└──────────────────────────────────────────────────────────┘");
+    logger.box(
+      [
+        `Local URL:    \x1b[36m${url}\x1b[0m`,
+        `Catalog:      \x1b[33m250+ Community & Custom Primitives\x1b[0m`,
+        `Security:     \x1b[32mLoopback only (127.0.0.1) · Zero external telemetry\x1b[0m`,
+        `Logs:         \x1b[90m${join(dataDir, "logs")}\x1b[0m`,
+      ],
+      {
+        title: "Cline Marketplace Local Control Plane",
+      }
+    );
     console.log("");
   });
 

@@ -7,8 +7,9 @@ import { existsSync, statSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { platform } from "node:os";
+import { platform, cpus, totalmem, freemem } from "node:os";
 import net from "node:net";
+import { logger, colors, stripAnsi } from "../lib/logger.js";
 
 const execFileP = promisify(_execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,46 +19,46 @@ const refreshScript = join(pkgRoot, "scripts/refresh-catalog.mjs");
 const catalogFile = join(pkgRoot, "catalog.json");
 const pkgJsonFile = join(pkgRoot, "package.json");
 
-const colors = {
-  reset: "\x1b[0m",
-  bold: "\x1b[1m",
-  dim: "\x1b[2m",
-  cyan: "\x1b[36m",
-  blue: "\x1b[34m",
-  green: "\x1b[32m",
-  yellow: "\x1b[33m",
-  red: "\x1b[31m",
-  gray: "\x1b[90m",
-};
-
-function timestamp() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${colors.gray}[${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}]${colors.reset}`;
-}
-
 export function log(msg, ...meta) {
-  console.log(`${timestamp()} ${colors.cyan}[CLI]${colors.reset} ${msg}`, ...meta);
+  logger.cli(msg, ...meta);
 }
 export function warn(msg, ...meta) {
-  console.warn(`${timestamp()} ${colors.yellow}[WARN]${colors.reset} ${msg}`, ...meta);
+  logger.warn(msg, ...meta);
 }
 export function error(msg, ...meta) {
-  console.error(`${timestamp()} ${colors.red}[ERROR]${colors.reset} ${msg}`, ...meta);
+  logger.error(msg, ...meta);
 }
 
 const HELP = `
-${colors.bold}cline-marketplace${colors.reset} — Local browser and control plane for Cline Marketplace primitives.
+${colors.bold}${colors.acidLime}CLINE MARKETPLACE${colors.reset} — Local Browser, Primitive Registry & Control Plane
+${colors.dim}Official control plane for Cline plugins, skills, and MCP servers.${colors.reset}
 
-${colors.bold}Usage:${colors.reset}
-  npx cline-marketplace               One-shot launch: prepare → start server → open browser
-  cline-marketplace                   Standard CLI launch
-  cline-marketplace --no-open         Start server without opening browser window
-  cline-marketplace --port <n>        Specify server port (default: 5173 or next available)
-  cline-marketplace update            Check for updates and pull latest version
-  cline-marketplace refresh           Re-download catalog and refresh upstream metadata
-  cline-marketplace refresh --catalog Fast catalog refresh (skip commit metadata)
-  cline-marketplace help              Display this help message
+${colors.bold}${colors.cyan}USAGE:${colors.reset}
+  ${colors.acidLime}npx cline-marketplace${colors.reset}               One-shot launch (bootstrap → start → open UI)
+  ${colors.acidLime}cline-marketplace${colors.reset}                   Launch local control plane server
+  ${colors.acidLime}cline-marketplace --no-open${colors.reset}         Start server without auto-opening browser
+  ${colors.acidLime}cline-marketplace --port <number>${colors.reset}   Bind server to a specific local port (default: 5173)
+
+${colors.bold}${colors.cyan}SUBCOMMANDS:${colors.reset}
+  ${colors.yellow}status${colors.reset}                              Show local server telemetry, catalog, and storage roots
+  ${colors.yellow}health${colors.reset}                              Run runtime environment and CLI toolchain diagnostics
+  ${colors.yellow}list${colors.reset}                                List all locally discovered and installed primitives
+  ${colors.yellow}refresh${colors.reset}                             Re-download official catalog and upstream commit metadata
+  ${colors.yellow}refresh --catalog${colors.reset}                   Fast catalog refresh (skip commit histories)
+  ${colors.yellow}update${colors.reset}                              Check upstream git/npm for package updates
+  ${colors.yellow}help${colors.reset}, ${colors.yellow}--help${colors.reset}, ${colors.yellow}-h${colors.reset}                 Display this interactive reference manual
+
+${colors.bold}${colors.cyan}ENVIRONMENT VARIABLES:${colors.reset}
+  ${colors.magenta}PORT${colors.reset}                                Server listening port (default: 5173)
+  ${colors.magenta}HOST${colors.reset}                                Bind address (default: 127.0.0.1)
+  ${colors.magenta}CLINEMARKET_DATA_DIR${colors.reset}               Custom path for data persistence directory
+  ${colors.magenta}CLINEMARKET_LOG_DIR${colors.reset}                Custom path for rotating daily log files
+  ${colors.magenta}NO_COLOR${colors.reset}                            Disable ANSI terminal colors and formatting
+
+${colors.bold}${colors.cyan}EXAMPLES:${colors.reset}
+  $ cline-marketplace --port 8080 --no-open
+  $ cline-marketplace health
+  $ cline-marketplace refresh --catalog
 `;
 
 // Self-bootstrap: ensure dependencies are installed (crucial for npx execution)
@@ -70,7 +71,7 @@ export async function ensureDependencies() {
         cwd: pkgRoot,
         timeout: 90_000,
       });
-      log("Runtime dependencies ready.");
+      logger.success("Runtime dependencies ready.");
     } catch (err) {
       warn(`Could not run npm install automatically: ${err.message}`);
     }
@@ -94,7 +95,7 @@ export async function fetchCatalog() {
   log("Downloading catalog from upstream registry...");
   try {
     await execFileP(process.execPath, [refreshScript, "--catalog"], { cwd: pkgRoot, timeout: 60_000 });
-    log("Catalog downloaded successfully.");
+    logger.success("Catalog downloaded successfully.");
     return true;
   } catch (err) {
     warn(`Catalog download failed: ${err.message}`);
@@ -113,10 +114,17 @@ export async function checkForRemoteUpdates() {
       const remotePkg = await res.json();
       if (remotePkg.version && remotePkg.version !== currentVersion) {
         console.log("");
-        console.log(`${colors.yellow}┌────────────────────────────────────────────────────────┐${colors.reset}`);
-        console.log(`${colors.yellow}│${colors.reset}  ${colors.bold}Update Available:${colors.reset} v${currentVersion} -> ${colors.green}v${remotePkg.version}${colors.reset}${" ".repeat(25)}${colors.yellow}│${colors.reset}`);
-        console.log(`${colors.yellow}│${colors.reset}  Run ${colors.cyan}git pull${colors.reset} or ${colors.cyan}npm install -g cline-marketplace${colors.reset}${" ".repeat(8)}${colors.yellow}│${colors.reset}`);
-        console.log(`${colors.yellow}└────────────────────────────────────────────────────────┘${colors.reset}`);
+        logger.box(
+          [
+            `Current: ${colors.dim}v${currentVersion}${colors.reset}  →  Latest: ${colors.acidLime}v${remotePkg.version}${colors.reset}`,
+            `Run ${colors.cyan}git pull${colors.reset} or ${colors.cyan}npm install -g cline-marketplace${colors.reset} to update.`,
+          ],
+          {
+            title: "Update Available",
+            borderColor: colors.yellow,
+            titleColor: colors.bold + colors.yellow,
+          }
+        );
         console.log("");
       }
     }
@@ -218,7 +226,7 @@ export function startServer(port, host) {
   child.stderr.on("data", (d) => process.stderr.write(d));
   child.on("exit", (code, signal) => {
     if (signal === "SIGINT" || signal === "SIGTERM") {
-      console.log(`\n${timestamp()} ${colors.yellow}[CLI]${colors.reset} Server process stopped.`);
+      console.log(`\n${colors.yellow}[CLI]${colors.reset} Server process stopped.`);
     } else if (code !== 0 && code !== null) {
       error(`Server exited with code ${code}`);
     }
@@ -242,6 +250,80 @@ export function openBrowser(url) {
   } catch (err) {
     warn(`Could not launch browser: ${err.message}`);
     log(`Open URL manually: ${url}`);
+  }
+}
+
+export async function runCliStatus(host = "127.0.0.1", port = 5173) {
+  console.log(`\n${colors.bold}${colors.acidLime}Probing Cline Marketplace Control Plane...${colors.reset}\n`);
+  try {
+    const r = await fetch(`http://${host}:${port}/api/status`, { signal: AbortSignal.timeout(2500) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    logger.box(
+      [
+        `Status:       ${colors.green}● ACTIVE (ONLINE)${colors.reset}`,
+        `Node Runtime: ${colors.cyan}${data.node || process.version}${colors.reset} (${process.arch})`,
+        `Server URL:   ${colors.cyan}http://${host}:${port}${colors.reset}`,
+        `Catalog:      ${colors.yellow}${data.catalog?.total || 0} primitives${colors.reset} (${data.catalog?.installed || 0} installed)`,
+        `Uptime:       ${colors.gray}${Math.floor(data.uptime || 0)}s${colors.reset}`,
+      ],
+      { title: "Cline Marketplace Status" }
+    );
+  } catch (err) {
+    logger.box(
+      [
+        `Status:       ${colors.red}○ OFFLINE (Server not running on port ${port})${colors.reset}`,
+        `Tip:          Run ${colors.acidLime}cline-marketplace${colors.reset} to launch the control plane.`,
+      ],
+      { title: "Cline Marketplace Status", borderColor: colors.red, titleColor: colors.bold + colors.red }
+    );
+  }
+}
+
+export async function runCliHealth(host = "127.0.0.1", port = 5173) {
+  console.log(`\n${colors.bold}${colors.acidLime}Running System & Diagnostic Probes...${colors.reset}\n`);
+  try {
+    const r = await fetch(`http://${host}:${port}/api/health`, { signal: AbortSignal.timeout(3500) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+
+    const okCount = (data.checks || []).filter((c) => c.ok).length;
+    const totalCount = (data.checks || []).length;
+    console.log(`Diagnostic checks: ${okCount === totalCount ? colors.green : colors.yellow}${okCount}/${totalCount} passed${colors.reset}\n`);
+
+    for (const c of data.checks || []) {
+      const mark = c.ok ? `${colors.green}[✓]${colors.reset}` : `${colors.red}[✗]${colors.reset}`;
+      console.log(`  ${mark} ${colors.bold}${c.name}${colors.reset}: ${c.message}`);
+    }
+
+    if (data.rootsDetail && data.rootsDetail.length > 0) {
+      console.log(`\n${colors.bold}${colors.cyan}Discovered Storage Roots:${colors.reset}`);
+      for (const root of data.rootsDetail) {
+        const mark = root.exists ? `${colors.green}●${colors.reset}` : `${colors.gray}○${colors.reset}`;
+        console.log(`  ${mark} ${root.path} ${colors.dim}(${root.plugins}p · ${root.skills}s · ${root.mcps}m)${colors.reset}`);
+      }
+    }
+    console.log("");
+  } catch (err) {
+    error(`Health check failed: ${err.message}. Make sure server is running.`);
+  }
+}
+
+export async function runCliList(host = "127.0.0.1", port = 5173) {
+  try {
+    const r = await fetch(`http://${host}:${port}/api/installed`, { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const list = data.installed || [];
+    console.log(`\n${colors.bold}${colors.acidLime}Discovered & Installed Primitives (${list.length}):${colors.reset}\n`);
+    for (const item of list) {
+      const typeColor = item.type === "plugin" ? colors.green : item.type === "skill" ? colors.iris : colors.cobalt;
+      console.log(`  ${typeColor}[${item.type.toUpperCase()}]${colors.reset} ${colors.bold}${item.id}${colors.reset} ${colors.dim}(${item.scope || "global"})${colors.reset}`);
+    }
+    console.log("");
+  } catch (err) {
+    error(`Could not list installed primitives: ${err.message}`);
   }
 }
 
@@ -277,16 +359,28 @@ export async function main(argv = process.argv.slice(2)) {
     envPort = num;
   }
 
-  if (sub === "update") {
+  const host = process.env.HOST || "127.0.0.1";
+  const port = cliPort || envPort || 5173;
+
+  if (sub === "status") {
+    await runCliStatus(host, port);
+    process.exit(0);
+  } else if (sub === "health") {
+    await runCliHealth(host, port);
+    process.exit(0);
+  } else if (sub === "list") {
+    await runCliList(host, port);
+    process.exit(0);
+  } else if (sub === "update") {
     log("Checking for updates and pulling latest changes...");
     try {
       const gitDir = join(pkgRoot, ".git");
       if (existsSync(gitDir)) {
         await execFileP("git", ["pull", "origin", "main"], { cwd: pkgRoot });
-        log("Updated from git successfully.");
+        logger.success("Updated from git successfully.");
       } else {
         await execFileP(process.platform === "win32" ? "npm.cmd" : "npm", ["install", "-g", "cline-marketplace@latest"]);
-        log("Updated global package via npm.");
+        logger.success("Updated global package via npm.");
       }
       process.exit(0);
     } catch (err) {
@@ -300,11 +394,10 @@ export async function main(argv = process.argv.slice(2)) {
     const child = spawn(process.execPath, [refreshScript, ...argv.slice(1)], { stdio: "inherit", cwd: pkgRoot });
     child.on("exit", (code) => process.exit(code ?? 0));
   } else {
-    // Default: full flow
+    // Default: full launch flow
     await ensureDependencies();
     ensureServerEntry();
-    const initialPort = cliPort || envPort || 5173;
-    const host = process.env.HOST || "127.0.0.1";
+    const initialPort = port;
 
     if (!hasFreshCatalog()) {
       log("Catalog cache missing or older than 24h.");
@@ -321,7 +414,7 @@ export async function main(argv = process.argv.slice(2)) {
       log(`Port ${initialPort} is active; probing existing instance...`);
       const status = await probeStatus(initialPort, host, 4000);
       if (status) {
-        log(`Connected to active instance (${status.catalog?.total ?? 0} entries loaded).`);
+        logger.success(`Connected to active instance (${status.catalog?.total ?? 0} entries loaded).`);
         targetPort = initialPort;
       } else {
         warn(`Port ${initialPort} is occupied by another process. Starting on next available port...`);
