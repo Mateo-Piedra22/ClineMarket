@@ -60,7 +60,7 @@ Full catalog interface showing 200+ primitives, multi-token search, type chips, 
 
 ### Recommended Workspace Toolchains
 
-Auto-detects project tech stack, Git remotes, and dependency trees to rank primitives and curated toolchain bundles (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*).
+Auto-detects project tech stack, Git remotes, and dependency trees to rank primitives and assemble curated toolchain bundles from the recommendation engine (`lib/recommender.js`).
 
 <img width="1600" alt="Recommended Toolchains View" src="docs/screenshot-recommended.png" />
 
@@ -113,6 +113,7 @@ flowchart TD
         Resolver[Cross-Platform Binary Resolver - lib/resolver.js]
         Runner[Subprocess Bridge & Lock - lib/runner.js]
         Reconciler[Filesystem Reconciler - lib/reconciler.js]
+        Recommender[Context Recommendation Engine - lib/recommender.js]
         State[Atomic JSON Queues & Quarantine - lib/state.js]
         Logger[Structured Logger - lib/logger.js]
     end
@@ -138,6 +139,7 @@ flowchart TD
     Router --> Resolver --> GHBin
     Router --> Reconciler --> StorageRoots
     Router --> Reconciler --> VSCodeStorage
+    Router --> Recommender --> Reconciler
 ```
 
 ---
@@ -148,8 +150,8 @@ flowchart TD
 | :--- | :--- |
 | **Catalog Browser** | Real-time search across 250+ primitives with multi-token filtering by keyword, author, license, tags, and state flags. |
 | **Bulk Mode** | Multi-select primitives across search results to batch-install, batch-uninstall, watch, or unwatch in a single atomic queue. |
-| **Curated Toolchains** | Workspace toolchains (*Fullstack & API Toolchain*, *Cloudflare Serverless Suite*, *Database & Storage Toolchain*) installable with one click. |
-| **Workspace Matcher** | Deep heuristic analysis of `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Git remotes, and project files to score catalog entries. |
+| **Curated Toolchains** | Workspace toolchains assembled data-driven from the recommendation engine (Node & TypeScript Fullstack, Python AI/ML, Cloudflare & Edge, Databases, Testing/QA, API Development, Agentic AI, and more), installable with one click. |
+| **Workspace Matcher** | Deep heuristic analysis of `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, Git remotes, and project files to score catalog entries. The rewritten `lib/recommender.js` engine adds dependency-name, workspace-hint, and id-match signals and excludes already-installed primitives. |
 | **Live Drift Detection** | Filesystem reconciler automatically discovers externally installed primitives and surfaces `drift` flags if an item was removed. |
 | **Dynamic Port Binding** | Automatically detects port conflicts on `5173` and binds to the next available socket (`5174`, `5175`, ...) without crashing. |
 | **Process Management** | Dedicated server shutdown endpoint (`POST /api/shutdown`) and Windows process tree kill (`taskkill /pid /T /F`) for timeouts. |
@@ -260,7 +262,7 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 | `GET` | `/api/installed` | Executes a filesystem probe across `~/.cline` and VS Code configs, returning reconciled state. | `?cwd=/path/to/project` |
 | `GET` | `/api/status` | Returns runtime health, Node version, memory usage, uptime, detected `cline` path, and storage roots. | None |
 | `GET` | `/api/version` | Returns current package version and app metadata. | None |
-| `GET` | `/api/context` | Runs stack heuristics against a workspace directory and returns active git branch, commit hash, and ranked toolchains. | `?cwd=/path/to/project` |
+| `GET` | `/api/context` | Runs stack heuristics against a workspace directory, scoring catalog entries with the recommender engine and returning ranked data-driven bundle recommendations with completion percentages. | `?cwd=/path/to/project` |
 | `POST` | `/api/workspaces/validate` | Validates directory existence, `.git` repository, package manager lockfiles, and `.cline` configurations. | `{"path": "/path/to/project"}` |
 | `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal", "scope": "global"}` |
 | `POST` | `/api/uninstall` | Invokes `cline <type> uninstall <id>` and updates local registry records. | `{"type": "plugin", "id": "goal"}` |

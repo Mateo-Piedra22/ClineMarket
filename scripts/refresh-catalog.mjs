@@ -12,12 +12,14 @@
 //   data/upstream-meta.json { id, type, updatedAt, committedAt, sha } per entry
 
 import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { randomBytes } from "node:crypto";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const dataDir =
   process.env.CLINEMARKET_DATA_DIR ||
+  // DEPRECATED (audit #22): generic DATA_DIR kept only for backwards compat.
   process.env.DATA_DIR ||
   join(root, "data");
 mkdirSync(dataDir, { recursive: true });
@@ -51,6 +53,103 @@ let githubToken = null;
 
 function log(...a) {
   console.log("[refresh]", ...a);
+}
+
+// Audit C4-11 (Low): tmp names were predictable (`${path}.${Date.now()}.tmp`),
+// trivially collidable and symlink-able by a local attacker. Add randomBytes
+// entropy to every atomic write.
+function tmpPathFor(file) {
+  return `${file}.${Date.now()}.${randomBytes(8).toString("hex")}.tmp`;
+}
+
+function atomicWriteJsonSync(file, data) {
+  const tmp = tmpPathFor(file);
+  try {
+    writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
+    renameSync(tmp, file);
+  } catch (err) {
+    try {
+      if (existsSync(tmp)) unlinkSync(tmp);
+    } catch {}
+    throw err;
+  }
+}
+
+const VALID_ENTRY_TYPES = new Set(["plugin", "skill", "mcp"]);
+
+/**
+ * Audit C4-03 (High): the upstream catalog was persisted with zero schema
+ * validation. Validates and filters entries: `id` non-empty string, `type` in
+ * {plugin, skill, mcp}, and `install.args` (if present) an array of strings.
+ * Throws when the payload is structurally unusable; logs discarded entries.
+ * @param {any} catalog
+ * @returns {object} validated catalog (filtered copy)
+ */
+export function validateCatalogSchema(catalog) {
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+    throw new Error("catalog: payload is not an object");
+  }
+  if (!Array.isArray(catalog.entries) || catalog.entries.length === 0) {
+    throw new Error("catalog: 'entries' must be a non-empty array");
+  }
+  const valid = [];
+  let discarded = 0;
+  for (const entry of catalog.entries) {
+    const ok =
+      entry &&
+      typeof entry === "object" &&
+      !Array.isArray(entry) &&
+      typeof entry.id === "string" &&
+      entry.id.trim() !== "" &&
+      VALID_ENTRY_TYPES.has(entry.type) &&
+      (entry.install === undefined ||
+        entry.install === null ||
+        (typeof entry.install === "object" &&
+          !Array.isArray(entry.install) &&
+          (entry.install.args === undefined ||
+            (Array.isArray(entry.install.args) && entry.install.args.every((a) => typeof a === "string")))));
+    if (ok) {
+      valid.push(entry);
+    } else {
+      discarded++;
+    }
+  }
+  if (discarded > 0) {
+    log(`schema validation: discarded ${discarded} invalid entr${discarded === 1 ? "y" : "ies"}`);
+  }
+  if (valid.length === 0) {
+    throw new Error("catalog: all entries failed schema validation");
+  }
+  const next = { ...catalog, entries: valid };
+  if (next.counts && typeof next.counts === "object" && !Array.isArray(next.counts)) {
+    next.counts = {
+      ...next.counts,
+      plugins: valid.filter((e) => e.type === "plugin").length,
+      skills: valid.filter((e) => e.type === "skill").length,
+      mcps: valid.filter((e) => e.type === "mcp").length,
+      total: valid.length,
+    };
+  }
+  return next;
+}
+
+/**
+ * Audit #1 (Critical): defensive merge for upstream-meta.json. Returns null
+ * when the freshly fetched meta is empty (no token / total rate-limit), so
+ * callers must skip the write instead of destroying the existing file. When
+ * the fetch is partial, existing keys not reached this run are preserved.
+ * @param {any} fetched
+ * @param {any} existing Parsed previous upstream-meta.json (or null).
+ * @returns {object|null}
+ */
+export function mergeUpstreamMeta(fetched, existing) {
+  if (!fetched || typeof fetched !== "object" || Array.isArray(fetched) || Object.keys(fetched).length === 0) {
+    return null;
+  }
+  if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+    return { ...existing, ...fetched };
+  }
+  return { ...fetched };
 }
 
 async function fetchJson(url) {
@@ -280,8 +379,11 @@ async function main() {
   }
 
   log("downloading catalog:", CATALOG_URL);
-  const catalog = await fetchJson(CATALOG_URL);
-  const totalCount = catalog.counts?.total ?? (Array.isArray(catalog.entries) ? catalog.entries.length : 0);
+  const rawCatalog = await fetchJson(CATALOG_URL);
+  // Audit C4-03 (High): validate the upstream payload BEFORE persisting.
+  // Throws (aborting the refresh) when the payload is structurally unusable.
+  const catalog = validateCatalogSchema(rawCatalog);
+  const totalCount = catalog.counts?.total ?? catalog.entries.length;
   log(
     `catalog: ${totalCount} entries ` +
       `(plugins ${catalog.counts?.plugins ?? 0}, skills ${catalog.counts?.skills ?? 0}, ` +
@@ -294,18 +396,14 @@ async function main() {
   if (existsSync(cur)) {
     try {
       const prevCatalog = JSON.parse(readFileSync(cur, "utf8"));
-      const prevTmp = `${prev}.${Date.now()}.tmp`;
-      writeFileSync(prevTmp, JSON.stringify(prevCatalog, null, 2));
-      renameSync(prevTmp, prev);
+      atomicWriteJsonSync(prev, prevCatalog);
       log("rotated previous catalog -> catalog-prev.json");
     } catch (rotErr) {
       log("warning: failed rotating previous catalog:", rotErr.message);
     }
   }
 
-  const curTmp = `${cur}.${Date.now()}.tmp`;
-  writeFileSync(curTmp, JSON.stringify(catalog, null, 2));
-  renameSync(curTmp, cur);
+  atomicWriteJsonSync(cur, catalog);
   log("wrote catalog.json");
 
   if (catalogOnly) {
@@ -316,13 +414,35 @@ async function main() {
   log("fetching per-entry last-commit metadata from GitHub...");
   const meta = await fetchMeta(catalog);
   const metaFile = join(dataDir, "upstream-meta.json");
-  const metaTmp = `${metaFile}.${Date.now()}.tmp`;
-  writeFileSync(metaTmp, JSON.stringify(meta, null, 2));
-  renameSync(metaTmp, metaFile);
-  log(`wrote upstream-meta.json (${Object.keys(meta).length} entries)`);
+  // Audit #1 (Critical): NEVER persist an empty meta result — that destroyed
+  // the existing ~200-entry file when no GitHub token was available or the
+  // bulk pass was fully rate-limited. Empty -> skip + keep existing. Partial
+  // -> merge over the existing file so unreached keys survive.
+  let existingMeta = null;
+  if (existsSync(metaFile)) {
+    try {
+      existingMeta = JSON.parse(readFileSync(metaFile, "utf8"));
+    } catch (readErr) {
+      log("warning: existing upstream-meta.json unreadable, will write fresh:", readErr.message);
+      existingMeta = null;
+    }
+  }
+  const merged = mergeUpstreamMeta(meta, existingMeta);
+  if (!merged) {
+    log("upstream-meta: empty result (no token or fully rate-limited); keeping existing upstream-meta.json");
+    return;
+  }
+  atomicWriteJsonSync(metaFile, merged);
+  log(`wrote upstream-meta.json (${Object.keys(merged).length} entries)`);
 }
 
-main().catch((err) => {
-  console.error("[refresh] FAILED:", err);
-  process.exit(1);
-});
+// Only auto-run when executed directly (allows unit tests to import the
+// exported helpers without triggering network calls).
+const invokedDirectly =
+  process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error("[refresh] FAILED:", err);
+    process.exit(1);
+  });
+}

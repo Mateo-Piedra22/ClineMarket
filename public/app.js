@@ -533,7 +533,13 @@ async function runBulkAction(action) {
   try {
     toast("Bulk operation running", `Executing ${action} on ${items.length} items…`, "info");
     const res = await postJson("/api/bulk", { action, items });
-    toast("Bulk action finished", `Completed ${action} on ${items.length} items`, "success");
+    // F4: the backend reports partial failures via failedCount/ok.
+    const failedCount = Number(res.failedCount || 0);
+    if (failedCount > 0) {
+      toast("Bulk action finished with failures", `${items.length - failedCount} of ${items.length} ${action} operations succeeded. Check results for details.`, "warn");
+    } else {
+      toast("Bulk action finished", `Completed ${action} on ${items.length} items`, "success");
+    }
     state.selectedKeys.clear();
     await refreshInstalled();
     await refreshWatchlist();
@@ -2038,7 +2044,8 @@ function wireActions() {
     toast("Updating", "Pulling latest release and running npm install...", "info");
     try {
       const res = await postJson("/api/update/run", {});
-      toast("Updated Successfully", res.message || "Update finished! Please restart server.", "success");
+      // C3: el endpoint retorna { ok, output }; el output real del update es lo que hay que mostrar.
+      toast("Updated Successfully", res.output || "Update finished! Please restart server.", "success");
       $("#updateBanner")?.classList.add("hidden");
     } catch (err) {
       toast("Update Error", err.message || "Failed to update automatically. Try running git pull.", "error");

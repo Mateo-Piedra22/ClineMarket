@@ -25,9 +25,10 @@
     "unlink": "npm unlink -g cline-marketplace",
     "prepare": "node scripts/setup-hooks.mjs",
     "docs:screenshots": "node scripts/capture-screenshots.mjs",
-    "test:unit": "node --test scripts/unit-test.mjs",
+    "test:unit": "node --test scripts/unit-test.mjs scripts/unit-test-state.mjs",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "test": "node --test scripts/unit-test.mjs && node scripts/smoke-test.mjs"
+    "verify:lock": "node scripts/verify-skills-lock.mjs",
+    "test": "npm run test:unit && npm run test:smoke"
   },
   "repository": {
     "type": "git",

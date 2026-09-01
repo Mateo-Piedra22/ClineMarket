@@ -42,19 +42,19 @@ To help us triage and resolve the issue quickly, please provide:
 Cline Marketplace is designed with local-first, defense-in-depth principles:
 
 1. **Local Loopback Only & CSRF Mitigation**:
-   - The Express HTTP server strictly binds to `127.0.0.1`.
+   - The Express HTTP server strictly binds to `127.0.0.1` by default. A non-loopback `HOST` is blocked and forced back to loopback unless explicitly opted-in via `ALLOW_REMOTE_HOST=1`, which additionally requires a `CLINEMARKET_CONTROL_TOKEN`; without it the server refuses to start. The realized `EFFECTIVE_HOST` is used for both port discovery and the actual bind.
    - Mutating requests (`POST`, `PUT`, `DELETE`) are protected with `Origin` and `Sec-Fetch-Site` validation to prevent malicious cross-origin websites from triggering loopback actions.
 2. **Content-Security-Policy (CSP) & Defense-in-Depth Headers**:
-   - `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com; frame-ancestors 'none';`
+   - `Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; frame-ancestors 'none';`
    - `X-Content-Type-Options: nosniff`
    - `X-Frame-Options: SAMEORIGIN`
    - `Referrer-Policy: strict-origin-when-cross-origin`
-   - `X-XSS-Protection: 1; mode=block`
-   - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
-3. **Subprocess Isolation & Process Tree Cleanup**:
+   - `Permissions-Policy: interest-cohort=()`
+3. **Subprocess Isolation, Environment Segmentation & Process Tree Cleanup**:
    - External binaries (`cline`, `gh`, `npm`) are executed using argument vectors via `child_process.execFile` / `spawn` with `windowsHide: true`.
-   - On Windows, timeouts trigger process tree termination (`taskkill /pid ${proc.pid} /T /F`) to prevent rogue child processes.
-   - Buffer size limits (`maxBuffer: 5MB`) are strictly bounded.
+   - The child environment is built from a strict **allowlist** (`getExecutionEnv()` in `lib/runner.js`): platform/path variables (`PATH`, `PATHEXT`, `ComSpec`, `SystemRoot`, `HOME`, `TEMP`, proxies, `npm_config_*`/`CLINEMARKET_*` prefixes) are preserved while credentials (`GITHUB_TOKEN`, `GH_TOKEN`, `*_API_KEY`, `*_SECRET`, `NODE_OPTIONS`) are **never propagated** to child processes. Callers can explicitly opt in to specific secrets via `getExecutionEnv({ inheritSecrets: [...] })`.
+   - On Windows, timeouts trigger process tree termination (`taskkill /pid ${proc.pid} /T /F`); on POSIX the entire spawned process group is signaled (`process.kill(-pid)`), preventing orphaned grandchildren.
+   - Buffer size limits (`maxBuffer: 5MB`) are strictly bounded, with truncation warnings emitted to the log.
 4. **Strict Input Sanitization & Path Traversal Guards**:
    - Primitive types are restricted strictly to `plugin`, `skill`, or `mcp`.
    - Primitive IDs are validated against `/^[a-zA-Z0-9@_.-]+$/` with explicit checks preventing path traversal (`..`), slashes, and control characters.

@@ -201,6 +201,34 @@ export async function waitForServer(port, host, timeoutMs = 15_000) {
   return false;
 }
 
+/**
+ * F12 — Discovers the server's effective port by probing /api/status across a range.
+ * server.js falls back to findAvailablePort() when the CLI-chosen port was taken
+ * during a TOCTOU race between the pre-check and the bind; without this sync the
+ * CLI opens the browser at the wrong port.
+ * @param {string} host
+ * @param {number} startPort
+ * @param {number} endPort
+ * @param {number} timeoutMs
+ * @returns {Promise<number|null>} Puerto efectivo, o null si no responde nada
+ */
+export async function discoverEffectivePort(host, startPort, endPort, timeoutMs = 10_000) {
+  if (!Number.isInteger(startPort) || !Number.isInteger(endPort) || startPort < 1 || startPort > endPort) {
+    return null;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    for (let p = startPort; p <= endPort; p++) {
+      try {
+        const r = await fetch(`http://${host}:${p}/api/status`, { signal: AbortSignal.timeout(500) });
+        if (r.ok) return p;
+      } catch {}
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return null;
+}
+
 export async function probeStatus(port, host, timeoutMs = 5_000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -270,6 +298,7 @@ export async function runCliStatus(host = "127.0.0.1", port = 5173) {
       ],
       { title: "Cline Marketplace Status" }
     );
+    return true;
   } catch (err) {
     logger.box(
       [
@@ -278,6 +307,7 @@ export async function runCliStatus(host = "127.0.0.1", port = 5173) {
       ],
       { title: "Cline Marketplace Status", borderColor: colors.red, titleColor: colors.bold + colors.red }
     );
+    return false;
   }
 }
 
@@ -305,8 +335,11 @@ export async function runCliHealth(host = "127.0.0.1", port = 5173) {
       }
     }
     console.log("");
+    // F1: a degraded health state also counts as a failure for CI/scripts.
+    return okCount === totalCount && data.healthy !== false;
   } catch (err) {
     error(`Health check failed: ${err.message}. Make sure server is running.`);
+    return false;
   }
 }
 
@@ -322,8 +355,10 @@ export async function runCliList(host = "127.0.0.1", port = 5173) {
       console.log(`  ${typeColor}[${item.type.toUpperCase()}]${colors.reset} ${colors.bold}${item.id}${colors.reset} ${colors.dim}(${item.scope || "global"})${colors.reset}`);
     }
     console.log("");
+    return true;
   } catch (err) {
     error(`Could not list installed primitives: ${err.message}`);
+    return false;
   }
 }
 
@@ -363,14 +398,14 @@ export async function main(argv = process.argv.slice(2)) {
   const port = cliPort || envPort || 5173;
 
   if (sub === "status") {
-    await runCliStatus(host, port);
-    process.exit(0);
+    const ok = await runCliStatus(host, port);
+    process.exit(ok ? 0 : 1);
   } else if (sub === "health") {
-    await runCliHealth(host, port);
-    process.exit(0);
+    const ok = await runCliHealth(host, port);
+    process.exit(ok ? 0 : 1);
   } else if (sub === "list") {
-    await runCliList(host, port);
-    process.exit(0);
+    const ok = await runCliList(host, port);
+    process.exit(ok ? 0 : 1);
   } else if (sub === "update") {
     log("Checking for updates and pulling latest changes...");
     try {
@@ -441,8 +476,19 @@ export async function main(argv = process.argv.slice(2)) {
       ownedChild = startServer(targetPort, host);
     }
 
-    const url = `http://${host}:${targetPort}`;
-    const ready = await waitForServer(targetPort, host);
+    let url = `http://${host}:${targetPort}`;
+    let ready = await waitForServer(targetPort, host);
+    if (!ready && ownedChild) {
+      // F12: server.js puede haber derivado a otro puerto (TOCTOU con findAvailablePort
+      // en server.js). Sincronizar con el puerto efectivo antes de abrir el browser.
+      const effective = await discoverEffectivePort(host, targetPort, Math.min(targetPort + 20, 65535), 10_000);
+      if (effective) {
+        warn(`Server effective port drifted from ${targetPort} to ${effective}.`);
+        targetPort = effective;
+        url = `http://${host}:${targetPort}`;
+        ready = true;
+      }
+    }
     if (!ready && !ownedChild) {
       error(`Server failed to respond on ${url} within timeout.`);
       process.exit(1);

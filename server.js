@@ -34,6 +34,21 @@ const SETTINGS_PATH = join(dataDir, "user-settings.json");
 const DEFAULT_PORT = Number(process.env.PORT || 5173);
 const HOST = process.env.HOST || "127.0.0.1";
 
+// C4-12 (docs/audits/2026-08-30-audit-install-gestion/04-seguridad-installs.md, Low):
+// `HOST` era overridable sin guardia; con HOST=0.0.0.0 el control plane completo
+// quedaba expuesto a la LAN sin auth ni rate limit. Bloqueamos no-loopback salvo
+// explicit opt-in (ALLOW_REMOTE_HOST=1), which also requires a control token.
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "::ffff:127.0.0.1"]);
+if (!LOOPBACK_HOSTS.has(HOST)) {
+  if (process.env.ALLOW_REMOTE_HOST !== "1") {
+    logger.warn(`Non-loopback HOST blocked ("${HOST}"); forcing 127.0.0.1. Set ALLOW_REMOTE_HOST=1 to enable it explicitly.`);
+  } else if (!process.env.CLINEMARKET_CONTROL_TOKEN) {
+    logger.error("ALLOW_REMOTE_HOST=1 with a non-loopback HOST requires CLINEMARKET_CONTROL_TOKEN. Set that variable before exposing the server to the network.");
+    process.exit(1);
+  }
+}
+const EFFECTIVE_HOST = LOOPBACK_HOSTS.has(HOST) ? HOST : (process.env.ALLOW_REMOTE_HOST === "1" ? HOST : "127.0.0.1");
+
 export const app = express();
 
 // Security and Content-Type Headers Middleware
@@ -45,7 +60,7 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "interest-cohort=()");
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com;"
+    "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; frame-ancestors 'none';"
   );
   next();
 });
@@ -155,14 +170,14 @@ async function findAvailablePort(startPort, host, maxAttempts = 20) {
 }
 
 export async function startServer() {
-  const port = await findAvailablePort(DEFAULT_PORT, HOST);
+  const port = await findAvailablePort(DEFAULT_PORT, EFFECTIVE_HOST);
   if (!port) {
     logger.error(`No available port found in range ${DEFAULT_PORT}–${DEFAULT_PORT + 20}`);
     process.exit(1);
   }
 
-  const server = app.listen(port, HOST, () => {
-    const url = `http://${HOST}:${port}`;
+  const server = app.listen(port, EFFECTIVE_HOST, () => {
+    const url = `http://${EFFECTIVE_HOST}:${port}`;
     console.log("");
     logger.box(
       [

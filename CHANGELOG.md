@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2026-08-31
+
+### Added
+- **Rewritten Context-Aware Recommendation Engine** (`lib/recommender.js`): Rebuilt from scratch with a cleaner, testable module surface (`scoreEntry`, `buildRecommendations`, `buildBundles`). New signals for a richer affinity model: `package.json`/`pyproject.toml` dependency names, workspace hint matches, direct id matches, and stack-bundle fit, alongside the existing language/framework/tag/repo signals.
+- **Extended Stack-Bundle Catalog**: Grown from 10 to **12 bundle rules** (`golang-services`, `rust-systems`) with per-entry stack signals for Go, Rust, databases, testing/QA, and API development.
+- **Recommendation Quality Controls**: Reasons are deduplicated and capped per entry, and `matchPercent` is now a calibrated 0-100 score (positive signals land in the 50-99 band; zero maps to 0) instead of a 50-99 clamp.
+- **Performance Optimizations**: Entry corpus tokenization is memoized with a `WeakMap` per entry identity, garbage-collected when catalog snapshots rotate between refreshes; keys use raw `type:id` (case and hyphens preserved).
+- **Full Engine Integration** (`lib/routes.js`): `GET /api/context` now delegates scoring and bundle assembly to the recommender engine. Curated hardcoded bundle lists were replaced with data-driven bundles assembled from catalog entries that match each rule's stack signals, plus a workspace-top-matches fallback. Already-installed primitives are excluded from recommendations.
+
+### Changed
+- **`/api/context` bundle contract**: Bundles now include a `completionPercent` field (0-100) computed from installed vs. total matching entries; the `items` array is capped at six entries per bundle.
+
+---
+
 ## [1.2.0] - 2026-08-30
 
 ### Added

