@@ -192,7 +192,7 @@ function renderCard(entry, { reasons = null, score = null, matchPercent = null }
   if (watched) badges.push(`<span class="badge watchlist">watchlist</span>`);
 
   const iconHtml = entry.icon
-    ? `<img src="${escapeHtml(entry.icon)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'placeholder',textContent:'${escapeHtml((entry.name || '?')[0])}'}))" />`
+    ? `<img class="entry-icon-img" src="${escapeHtml(entry.icon)}" alt="" loading="lazy" />`
     : `<span class="placeholder">${escapeHtml((entry.name || "?")[0])}</span>`;
 
   const updatedAt = entry.updatedAt;
@@ -282,6 +282,19 @@ function renderCard(entry, { reasons = null, score = null, matchPercent = null }
     }
     openDetail(entry);
   });
+
+  // Audit 2026-09-01 A4 (formerly H5): bind icon error handler via addEventListener
+  // to avoid inline-onerror `'`-decoding SyntaxError when entry.name starts with a quote.
+  const iconImg = card.querySelector(".entry-icon-img");
+  if (iconImg) {
+    iconImg.addEventListener("error", () => {
+      const initial = String(entry.name || "?")[0] || "?";
+      const span = document.createElement("span");
+      span.className = "placeholder";
+      span.textContent = initial;
+      iconImg.replaceWith(span);
+    }, { once: true });
+  }
 
   card.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") {

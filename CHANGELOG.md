@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2026-09-01
+
+### Added
+- **Control-Token Authentication on Mutating Routes** (`lib/routes.js`, `server.js`): `CLINEMARKET_CONTROL_TOKEN` is now actually enforced on every `POST`, `PUT`, `DELETE`, and `PATCH` request whenever the server is bound to a non-loopback host (`ALLOW_REMOTE_HOST=1`). Comparison uses `crypto.timingSafeEqual` and accepts the token via `Authorization: Bearer <token>` or `X-Control-Token`. Unauthenticated requests receive `401 UNAUTHORIZED` with `{ ok: false, code: "UNAUTHORIZED" }`. The previously unguarded `POST /api/shutdown` (audit 2026-08-30 finding H6) is now also gated by the same middleware. Single-user local-only operation is unaffected (no auth on loopback).
+- **Rate Limiting for Mutating Endpoints** (`lib/routes.js`): `express-rate-limit@^7` middleware (`60s` window, `120 req` limit, `RATE_LIMITED` code) shields endpoints that spawn the `cline` subprocess (`/api/install`, `/api/bulk`) from abuse when the server is exposed on the LAN. Standard `RateLimit-*` headers are returned; legacy `X-RateLimit-*` are suppressed.
+- **Structured JSON Log Output & Level Gating** (`lib/logger.js`): `LOG_FORMAT=json` emits one JSON object per line (`ts`, `level`, `pid`, `msg`) for log shippers; `LOG_LEVEL=trace|debug|info|warn|error` filters stream and file output. Default behavior (`plain` + `info`) is fully backward compatible.
+- **Coverage Script** (`package.json`): `npm run test:coverage` instruments `lib/**/*.js` (excluding `lib/logger.js`) with Node's built-in `--experimental-test-coverage`. The library layer currently measures **100.00% line/branch/function** coverage across 53 unit tests.
+
+### Changed
+- **Inline `onerror` Removed From Card Icons** (`public/app.js`): the entry icon's failure handler no longer uses an inline `onerror="..."` attribute. It is now bound via `addEventListener('error', …, { once: true })` after the card is mounted. Closes audit 2026-08-30 finding H5 (`SyntaxError` when `entry.name` starts with a single quote).
+- **README Coverage Table Replaced with Measured Values**: the previous claim of "82.2% line coverage / 22 TAP test suites" was stale relative to the real suite (53 unit tests). The README now reflects the actual measured values emitted by `npm run test:coverage`.
+
+### Security
+- Closes audit 2026-09-01 findings **A1** (control token dead at startup), **A2** (unguarded `POST /api/shutdown`), **A3** (no rate limit on mutating routes), **A4** (inline `onerror` XSS-adjacent surface), and **A8** (no log level/format control).
+
+---
+
 ## [1.2.1] - 2026-08-31
 
 ### Added

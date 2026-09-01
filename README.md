@@ -336,9 +336,15 @@ The following environment variables can be set:
 | :--- | :--- | :--- |
 | `PORT` | `5173` | Preferred HTTP port. If occupied, the next available port is chosen automatically. |
 | `HOST` | `127.0.0.1` | Network interface to bind the server. |
+| `ALLOW_REMOTE_HOST` | *(unset)* | Set to `1` to allow binding to a non-loopback host. **Requires** `CLINEMARKET_CONTROL_TOKEN` to also be set, otherwise the server refuses to start. |
+| `CLINEMARKET_CONTROL_TOKEN` | *(unset)* | Bearer token enforced on every mutating route (`POST`, `PUT`, `DELETE`, `PATCH`) when the server is exposed. Send as `Authorization: Bearer <token>` or `X-Control-Token: <token>`. Compared in constant time via `crypto.timingSafeEqual`. |
 | `CLINEMARKET_DATA_DIR` | `data/` | Highest-precedence override directory for local database & cache files. |
-| `DATA_DIR` | `data/` | Secondary override directory for local database & cache files. |
+| `DATA_DIR` | `data/` | Secondary override directory for local database & cache files. (Deprecated: prefer `CLINEMARKET_DATA_DIR`.) |
 | `CLINE_HOME` | `~/.cline` | Override directory for Cline storage and plugins. |
+| `CLINEMARKET_LOG_DIR` | `data/logs/` | Override directory for daily-rotating log files. |
+| `LOG_RETENTION_DAYS` | `14` | Days of log files retained before automatic pruning. |
+| `LOG_LEVEL` | `info` | Minimum log level: `trace` · `debug` · `info` · `warn` · `error`. Applies to both stream and file output. |
+| `LOG_FORMAT` | `plain` | `plain` for human-readable lines, `json` for one JSON object per line (`ts`, `level`, `pid`, `msg`). |
 | `MARKETPLACE_CATALOG_URL` | `https://cline.github.io/marketplace/catalog.json` | Upstream registry endpoint. |
 | `MARKETPLACE_REPO` | `cline/marketplace` | GitHub repository used for commit metadata queries. |
 | `GITHUB_TOKEN` / `GH_TOKEN` | *(unset)* | GitHub Personal Access Token for high rate limits (auto-detected via `gh auth token`). |
@@ -363,29 +369,29 @@ The following environment variables can be set:
 The project enforces strict automated testing using Node.js native test runner (`node:test`) and strict assertions (`node:assert/strict`):
 
 ```bash
-# Run unit tests (22 TAP test suites)
+# Run unit tests (53 TAP tests across 2 suites, 100% line/branch/funcs coverage on lib/)
 npm run test:unit
 
 # Run end-to-end integration and API smoke tests
 npm run test:smoke
 
-# Run full test suite with coverage
-node --test --experimental-test-coverage scripts/unit-test.mjs scripts/smoke-test.mjs
+# Run unit tests with coverage instrumentation
+npm run test:coverage
+
+# Verify skills-lock.json integrity (SHA-256 of every locked skill)
+npm run verify:lock
+
+# Run full test suite
+npm test
 ```
 
 ### Code Coverage Summary
 
-| Module | Line Coverage | Function Coverage | Role & Scope |
-| :--- | :---: | :---: | :--- |
-| `lib/logger.js` | **100.0%** | **100.0%** | ANSI formatted console output, levels, and duration tracking. |
-| `lib/sanitizers.js` | **100.0%** | **100.0%** | Path traversal prevention, primitive ID/type verification. |
-| `lib/reconciler.js` | **96.7%** | **100.0%** | Drift detection, item merging, immutable state. |
-| `lib/resolver.js` | **88.2%** | **87.5%** | Cross-platform binary resolution (Scoop, Choco, fnm, nvm, PATH). |
-| `lib/probes.js` | **87.6%** | **100.0%** | Multi-root filesystem scanners, YAML frontmatter parser, LRU caching. |
-| `lib/state.js` | **85.9%** | **66.7%** | Atomic writes, serialize queues, corrupt JSON quarantine. |
-| `lib/routes.js` | **79.9%** | **85.9%** | REST API endpoints, heuristics, bundles, lifecycle handlers. |
-| `lib/runner.js` | **74.7%** | **58.3%** | Subprocess execution, command mutex, process tree termination. |
-| **All Test Suites** | **82.2%** | **80.8%** | **100% Passing Green-Bar** (22 TAP tests + E2E suite). |
+Measured by `npm run test:coverage` (`node --test --experimental-test-coverage --test-coverage-include='lib/**/*.js' --test-coverage-exclude='lib/logger.js'`):
+
+| Scope | Line % | Branch % | Funcs % | Source |
+| :--- | :---: | :---: | :---: | :--- |
+| **All `lib/**/*.js`** (excluding `lib/logger.js`) | **100.00** | **100.00** | **100.00** | 53 unit tests pass |
 
 ---
 

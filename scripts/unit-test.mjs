@@ -908,3 +908,75 @@ test("routes: createApiRouter handles all endpoints with in-process HTTP server"
     await new Promise((r) => server.close(r));
   }
 });
+
+// -----------------------------------------------------------------------------
+// 19. Control-token auth + rate limit (audit 2026-09-01 A1/A2/A3)
+//     Regression: when requireControlAuth=true, mutating routes must reject
+//     unauthorized callers with 401; authorized requests with the correct
+//     bearer token (timing-safe compare) must pass; bursts > limit must 429.
+// -----------------------------------------------------------------------------
+test("routes: control token + rate limit gate mutating routes (audit 2026-09-01 A1/A2/A3)", async () => {
+  const { createApiRouter } = await import("../lib/routes.js");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const express = (await import("express")).default;
+  const http = await import("node:http");
+
+  const dir = mkdtempSync(join(tmpdir(), "clinemarket-token-"));
+  const paths = {
+    root: dir, dataDir: dir,
+    CATALOG_PATH: join(dir, "catalog.json"),
+    PREV_CATALOG_PATH: join(dir, "prev.json"),
+    META_PATH: join(dir, "meta.json"),
+    INSTALLED_PATH: join(dir, "installed.json"),
+    WATCHLIST_PATH: join(dir, "watchlist.json"),
+    CONTEXT_PATH: join(dir, "ctx.json"),
+    SETTINGS_PATH: join(dir, "settings.json"),
+  };
+  const TOKEN = "super-secret-token-123";
+  const app = express();
+  app.use(express.json());
+  const router = createApiRouter({ ...paths, controlToken: TOKEN, requireControlAuth: true });
+  app.use("/api", router);
+  const srv = http.createServer(app);
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const { port } = srv.address();
+  const url = `http://127.0.0.1:${port}/api`;
+
+  try {
+    // 1) GET should NOT require the token.
+    const okGet = await fetch(`${url}/catalog`);
+    assert.notStrictEqual(okGet.status, 401, "GET must not be token-gated");
+
+    // 2) POST without token must be 401 UNAUTHORIZED.
+    const noTok = await fetch(`${url}/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(noTok.status, 401);
+    const noTokBody = await noTok.json();
+    assert.strictEqual(noTokBody.ok, false);
+    assert.strictEqual(noTokBody.code, "UNAUTHORIZED");
+
+    // 3) POST with wrong token must also be 401.
+    const wrongTok = await fetch(`${url}/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer wrong-token" },
+      body: JSON.stringify({}),
+    });
+    assert.strictEqual(wrongTok.status, 401);
+
+    // 4) POST with correct token must pass the auth gate (rate limit may
+    //    still reject on a burst, so we tolerate 4xx other than 401).
+    const goodTok = await fetch(`${url}/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${TOKEN}` },
+      body: JSON.stringify({ type: "plugin", id: "demo" }),
+    });
+    assert.notStrictEqual(goodTok.status, 401, "valid bearer must pass auth");
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});

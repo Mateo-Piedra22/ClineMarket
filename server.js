@@ -119,6 +119,12 @@ const apiRouter = createApiRouter({
   WATCHLIST_PATH,
   CONTEXT_PATH,
   SETTINGS_PATH,
+  // Audit 2026-09-01 A1/A2: the control token is now actually enforced on
+  // mutating routes when the server is exposed on a non-loopback host.
+  // requireControlAuth is only true when ALLOW_REMOTE_HOST=1 (set above) so
+  // local single-user usage is unaffected.
+  controlToken: process.env.CLINEMARKET_CONTROL_TOKEN || null,
+  requireControlAuth: process.env.ALLOW_REMOTE_HOST === "1",
 });
 app.use("/api", apiRouter);
 
