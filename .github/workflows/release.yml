@@ -46,7 +46,7 @@ jobs:
 
       - name: Generate Release Notes & Changelog
         id: release_notes
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const tag = '${{ steps.tag_info.outputs.tag }}';
