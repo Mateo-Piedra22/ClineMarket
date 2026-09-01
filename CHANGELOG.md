@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Full Engine Integration** (`lib/routes.js`): `GET /api/context` now delegates scoring and bundle assembly to the recommender engine. Curated hardcoded bundle lists were replaced with data-driven bundles assembled from catalog entries that match each rule's stack signals, plus a workspace-top-matches fallback. Already-installed primitives are excluded from recommendations.
 
 ### Changed
+- **MCP Installation Flag Ordering**: Fixed `buildInstallArgs` in `lib/routes.js` to insert non-interactive flags (`--yes --json`) before the `--` delimiter so that sub-command arguments (e.g. `npx chrome-devtools-mcp@1.2.0`) are properly separated and Cline CLI executes non-interactively without TTY prompts.
+- **Hash-Suffixed Plugin Normalization & Deduplication**: Enhanced `lib/probes.js`, `lib/reconciler.js`, and `lib/routes.js` to normalize marketplace plugin directories (e.g. `branch-protector-9cfb2c234999`), eliminating duplicate synthetic local cards and ensuring active status without drift.
 - **`/api/context` bundle contract**: Bundles now include a `completionPercent` field (0-100) computed from installed vs. total matching entries; the `items` array is capped at six entries per bundle.
 
 ---
