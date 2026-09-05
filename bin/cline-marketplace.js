@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 import { platform, cpus, totalmem, freemem } from "node:os";
 import net from "node:net";
 import { logger, colors, stripAnsi } from "../lib/logger.js";
+import { DEFAULT_PORT, DEFAULT_HOST, READY_MARKER } from "../lib/config.js";
 
 const execFileP = promisify(_execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,8 @@ ${colors.bold}${colors.cyan}USAGE:${colors.reset}
   ${colors.acidLime}cline-marketplace${colors.reset}                   Launch local control plane server
   ${colors.acidLime}cline-marketplace --no-open${colors.reset}         Start server without auto-opening browser
   ${colors.acidLime}cline-marketplace --port <number>${colors.reset}   Bind server to a specific local port (default: 5173)
+  ${colors.acidLime}cline-marketplace --version${colors.reset}         Print installed version and exit
+  ${colors.acidLime}cline-marketplace <sub> --json${colors.reset}      Emit machine-readable JSON for status/list/health
 
 ${colors.bold}${colors.cyan}SUBCOMMANDS:${colors.reset}
   ${colors.yellow}status${colors.reset}                              Show local server telemetry, catalog, and storage roots
@@ -250,7 +253,20 @@ export function startServer(port, host) {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  child.stdout.on("data", (d) => process.stdout.write(d));
+  // Port handshake (SSOT READY_MARKER, audit 2026-09-05): server.js prints the
+  // EFFECTIVE listen port after binding. This closes the TOCTOU drift where the
+  // browser was opened on the requested port while the server migrated
+  // (e.g. 5173 occupied → server on 5174). discoverEffectivePort stays as a
+  // probe fallback for older servers without the marker.
+  let resolveReadyPort;
+  const readyPort = new Promise((res) => (resolveReadyPort = res));
+  const handshakeTimeout = setTimeout(() => resolveReadyPort(null), 25_000);
+  handshakeTimeout.unref();
+  child.stdout.on("data", (d) => {
+    process.stdout.write(d);
+    const m = String(d).match(new RegExp(`${READY_MARKER} port=(\\d+)`));
+    if (m) resolveReadyPort(Number(m[1]));
+  });
   child.stderr.on("data", (d) => process.stderr.write(d));
   child.on("exit", (code, signal) => {
     if (signal === "SIGINT" || signal === "SIGTERM") {
@@ -262,7 +278,7 @@ export function startServer(port, host) {
   });
   process.on("SIGINT", () => child.kill("SIGINT"));
   process.on("SIGTERM", () => child.kill("SIGTERM"));
-  return child;
+  return Object.assign(child, { readyPort });
 }
 
 export function openBrowser(url) {
@@ -281,13 +297,13 @@ export function openBrowser(url) {
   }
 }
 
-export async function runCliStatus(host = "127.0.0.1", port = 5173) {
-  console.log(`\n${colors.bold}${colors.acidLime}Probing Cline Marketplace Control Plane...${colors.reset}\n`);
+export async function runCliStatus(host = DEFAULT_HOST, port = DEFAULT_PORT, json = false) {
   try {
     const r = await fetch(`http://${host}:${port}/api/status`, { signal: AbortSignal.timeout(2500) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-
+    if (json) { console.log(JSON.stringify(data)); return true; }
+    console.log(`\n${colors.bold}${colors.acidLime}Probing Cline Marketplace Control Plane...${colors.reset}\n`);
     logger.box(
       [
         `Status:       ${colors.green}● ACTIVE (ONLINE)${colors.reset}`,
@@ -300,6 +316,7 @@ export async function runCliStatus(host = "127.0.0.1", port = 5173) {
     );
     return true;
   } catch (err) {
+    if (json) { console.log(JSON.stringify({ ok: false, error: err.message })); return false; }
     logger.box(
       [
         `Status:       ${colors.red}○ OFFLINE (Server not running on port ${port})${colors.reset}`,
@@ -311,15 +328,16 @@ export async function runCliStatus(host = "127.0.0.1", port = 5173) {
   }
 }
 
-export async function runCliHealth(host = "127.0.0.1", port = 5173) {
-  console.log(`\n${colors.bold}${colors.acidLime}Running System & Diagnostic Probes...${colors.reset}\n`);
+export async function runCliHealth(host = DEFAULT_HOST, port = DEFAULT_PORT, json = false) {
   try {
     const r = await fetch(`http://${host}:${port}/api/health`, { signal: AbortSignal.timeout(3500) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
-
     const okCount = (data.checks || []).filter((c) => c.ok).length;
     const totalCount = (data.checks || []).length;
+    const passed = okCount === totalCount && data.healthy !== false;
+    if (json) { console.log(JSON.stringify({ ok: passed, ...data })); return passed; }
+    console.log(`\n${colors.bold}${colors.acidLime}Running System & Diagnostic Probes...${colors.reset}\n`);
     console.log(`Diagnostic checks: ${okCount === totalCount ? colors.green : colors.yellow}${okCount}/${totalCount} passed${colors.reset}\n`);
 
     for (const c of data.checks || []) {
@@ -336,19 +354,21 @@ export async function runCliHealth(host = "127.0.0.1", port = 5173) {
     }
     console.log("");
     // F1: a degraded health state also counts as a failure for CI/scripts.
-    return okCount === totalCount && data.healthy !== false;
+    return passed;
   } catch (err) {
+    if (json) { console.log(JSON.stringify({ ok: false, error: err.message })); return false; }
     error(`Health check failed: ${err.message}. Make sure server is running.`);
     return false;
   }
 }
 
-export async function runCliList(host = "127.0.0.1", port = 5173) {
+export async function runCliList(host = DEFAULT_HOST, port = DEFAULT_PORT, json = false) {
   try {
     const r = await fetch(`http://${host}:${port}/api/installed`, { signal: AbortSignal.timeout(3000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
     const list = data.installed || [];
+    if (json) { console.log(JSON.stringify(list)); return true; }
     console.log(`\n${colors.bold}${colors.acidLime}Discovered & Installed Primitives (${list.length}):${colors.reset}\n`);
     for (const item of list) {
       const typeColor = item.type === "plugin" ? colors.green : item.type === "skill" ? colors.iris : colors.cobalt;
@@ -357,14 +377,30 @@ export async function runCliList(host = "127.0.0.1", port = 5173) {
     console.log("");
     return true;
   } catch (err) {
+    if (json) { console.log(JSON.stringify({ ok: false, error: err.message })); return false; }
     error(`Could not list installed primitives: ${err.message}`);
     return false;
+  }
+}
+
+export function readPkgVersion() {
+  try {
+    return JSON.parse(readFileSync(pkgJsonFile, "utf8")).version || "0.0.0";
+  } catch {
+    return "0.0.0";
   }
 }
 
 export async function main(argv = process.argv.slice(2)) {
   if (argv.includes("--help") || argv.includes("-h") || argv[0] === "help") {
     console.log(HELP);
+    process.exit(0);
+  }
+
+  // --version / -v: print version and exit (previously this fell through to a
+  // server launch). Kept in SSOT with lib/config version + package.json.
+  if (argv.includes("--version") || argv.includes("-v")) {
+    console.log(`cline-marketplace v${readPkgVersion()}`);
     process.exit(0);
   }
 
@@ -394,17 +430,18 @@ export async function main(argv = process.argv.slice(2)) {
     envPort = num;
   }
 
-  const host = process.env.HOST || "127.0.0.1";
-  const port = cliPort || envPort || 5173;
+  const host = process.env.HOST || DEFAULT_HOST;
+  const port = cliPort || envPort || DEFAULT_PORT;
+  const asJson = argv.includes("--json");
 
   if (sub === "status") {
-    const ok = await runCliStatus(host, port);
+    const ok = await runCliStatus(host, port, asJson);
     process.exit(ok ? 0 : 1);
   } else if (sub === "health") {
-    const ok = await runCliHealth(host, port);
+    const ok = await runCliHealth(host, port, asJson);
     process.exit(ok ? 0 : 1);
   } else if (sub === "list") {
-    const ok = await runCliList(host, port);
+    const ok = await runCliList(host, port, asJson);
     process.exit(ok ? 0 : 1);
   } else if (sub === "update") {
     log("Checking for updates and pulling latest changes...");
@@ -477,25 +514,38 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     let url = `http://${host}:${targetPort}`;
-    let ready = await waitForServer(targetPort, host);
-    if (!ready && ownedChild) {
-      // F12: server.js puede haber derivado a otro puerto (TOCTOU con findAvailablePort
-      // en server.js). Sincronizar con el puerto efectivo antes de abrir el browser.
-      const effective = await discoverEffectivePort(host, targetPort, Math.min(targetPort + 20, 65535), 10_000);
-      if (effective) {
-        warn(`Server effective port drifted from ${targetPort} to ${effective}.`);
+    let ready;
+    if (ownedChild) {
+      // 1) Handshake: parse the READY_MARKER the server printed with its
+      //    effective port. 2) Fallback: probe /api/status across the range
+      //    (covers TOCTOU races the marker cannot report in time).
+      const effective = await ownedChild.readyPort;
+      if (effective && effective !== targetPort) {
+        warn(`Server effective port drifted from ${targetPort} to ${effective} (handshake).`);
         targetPort = effective;
         url = `http://${host}:${targetPort}`;
-        ready = true;
       }
-    }
-    if (!ready && !ownedChild) {
-      error(`Server failed to respond on ${url} within timeout.`);
-      process.exit(1);
-    } else if (!ready && ownedChild) {
-      error(`Server failed to start on ${url} within timeout.`);
-      try { ownedChild.kill("SIGTERM"); } catch {}
-      process.exit(1);
+      ready = await waitForServer(targetPort, host);
+      if (!ready) {
+        const probed = await discoverEffectivePort(host, targetPort, Math.min(targetPort + 20, 65535), 10_000);
+        if (probed) {
+          if (probed !== targetPort) warn(`Server effective port drifted from ${targetPort} to ${probed} (probe).`);
+          targetPort = probed;
+          url = `http://${host}:${targetPort}`;
+          ready = true;
+        }
+      }
+      if (!ready) {
+        error(`Server failed to start on ${url} within timeout.`);
+        try { ownedChild.kill("SIGTERM"); } catch {}
+        process.exit(1);
+      }
+    } else {
+      ready = await waitForServer(targetPort, host);
+      if (!ready) {
+        error(`Server failed to respond on ${url} within timeout.`);
+        process.exit(1);
+      }
     }
 
     if (!NO_OPEN) {

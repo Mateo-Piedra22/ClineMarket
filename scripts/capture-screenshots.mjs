@@ -3,6 +3,7 @@ import { writeFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCommand } from "../lib/resolver.js";
+import { DEFAULT_PORT, PORT_SCAN_END } from "../lib/config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -35,7 +36,7 @@ async function sleep(ms) {
 }
 
 async function findActiveServerPort() {
-  for (let port = 5173; port <= 5185; port++) {
+  for (let port = DEFAULT_PORT; port <= PORT_SCAN_END; port++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/api/status`, {
         signal: AbortSignal.timeout(600),

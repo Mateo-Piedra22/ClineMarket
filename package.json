@@ -1,6 +1,6 @@
 {
   "name": "cline-marketplace",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Official Primitive Registry & Local Control Plane for Cline (Plugins, Skills, and MCP Servers)",
   "type": "module",
   "main": "server.js",
@@ -29,7 +29,8 @@
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-include='lib/**/*.js' --test-coverage-exclude='lib/logger.js' scripts/unit-test.mjs scripts/unit-test-state.mjs",
     "verify:lock": "node scripts/verify-skills-lock.mjs",
-    "test": "npm run test:unit && npm run test:smoke"
+    "test": "npm run test:unit && npm run test:smoke",
+    "verify": "npm run test:unit && npm run test:smoke && npm audit --omit=dev && node scripts/verify-skills-lock.mjs"
   },
   "repository": {
     "type": "git",
@@ -52,6 +53,7 @@
   },
   "homepage": "https://github.com/Mateo-Piedra22/ClineMarket#readme",
   "dependencies": {
+    "compression": "^1.8.1",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.1"
   },

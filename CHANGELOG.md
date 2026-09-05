@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.3] - 2026-09-05
+
+### Added
+- **Catalog Search Endpoint** (`lib/routes.js`): new `GET /api/search` for programmatic/dev querying of the catalog. Full-text match across `id`, `name`, `tagline`, `description`, `author`, and `tags`; supports `q`, `type` (`plugin|skill|mcp`), `limit` (1–200, default 50), and `offset` pagination. Returns sanitized, secret-free records (`key`, `type`, `id`, `name`, `tagline`, `author`, `tags`, `verified`, `featured`, `homepage`, `repo`) wrapped in `{ ok, query, total, returned, results }`.
+- **Keyboard Search Shortcut** (`public/app.js`): pressing `/` focuses the catalog search input GitHub-style — switches to the Catalog tab and selects the existing query — without needing a mouse. Esc first clears any active search/filter before falling back to blur/modal-close behavior.
+- **UI State Persistence for Filters** (`public/app.js`): search text, type filter, and selected tags now persist across reloads via `localStorage` (`saveUiState`/`loadUiState`), including active-pills `[data-clear]`/`[data-clear-tag]` clears, `#btnClearTags`, `#btnClearAllFilters`, and Esc-driven resets. Eliminates stale-filter drift after refresh.
+- **Resolver Cache Test** (`scripts/unit-test.mjs`): new test verifies `resolveCommand` memoizes results and `clearResolveCache` invalidates the cache.
+
+### Changed
+- **README**: added `GET /api/search` to the endpoints table; refreshed measured unit-test count from 53 → 57 (100% L/B/F coverage unchanged).
+- **Screenshots** (`docs/screenshot-*.png`): regenerated for all tabs (Catalog, Recommended, Stats, Health, Changelog, Detail modal, Workspace sidebar) against the current build.
+- **Version bump** to `1.2.3`; `package.json` version and `CHANGELOG.md` top header kept in sync (CI auto-sync retains this invariant).
+
 ## [1.2.2] - 2026-09-01
 
 ### Added

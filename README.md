@@ -263,6 +263,7 @@ The server exposes a REST API on `http://127.0.0.1:5173`:
 | `GET` | `/api/status` | Returns runtime health, Node version, memory usage, uptime, detected `cline` path, and storage roots. | None |
 | `GET` | `/api/version` | Returns current package version and app metadata. | None |
 | `GET` | `/api/context` | Runs stack heuristics against a workspace directory, scoring catalog entries with the recommender engine and returning ranked data-driven bundle recommendations with completion percentages. | `?cwd=/path/to/project` |
+| `GET` | `/api/search` | Full-text search across the catalog for scripting/dev use. Matches id, name, tagline, description, author, and tags. | `?q=<term>&type=plugin|skill|mcp&limit=50&offset=0` |
 | `POST` | `/api/workspaces/validate` | Validates directory existence, `.git` repository, package manager lockfiles, and `.cline` configurations. | `{"path": "/path/to/project"}` |
 | `POST` | `/api/install` | Invokes `cline <type> install <args>` with automatic `--force` retry on existing packages. | `{"type": "plugin", "id": "goal", "scope": "global"}` |
 | `POST` | `/api/uninstall` | Invokes `cline <type> uninstall <id>` and updates local registry records. | `{"type": "plugin", "id": "goal"}` |
@@ -391,7 +392,7 @@ Measured by `npm run test:coverage` (`node --test --experimental-test-coverage -
 
 | Scope | Line % | Branch % | Funcs % | Source |
 | :--- | :---: | :---: | :---: | :--- |
-| **All `lib/**/*.js`** (excluding `lib/logger.js`) | **100.00** | **100.00** | **100.00** | 53 unit tests pass |
+| **All `lib/**/*.js`** (excluding `lib/logger.js`) | **100.00** | **100.00** | **100.00** | 57 unit tests pass |
 
 ---
 

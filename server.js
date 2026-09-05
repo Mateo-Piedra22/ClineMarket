@@ -3,12 +3,14 @@
 // High-performance Express application serving 250+ plugins, skills, and MCP servers.
 
 import express from "express";
+import compression from "compression";
 import { existsSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
 import { logger } from "./lib/logger.js";
 import { createApiRouter } from "./lib/routes.js";
+import { DEFAULT_PORT, DEFAULT_HOST, PORT_ATTEMPTS, READY_MARKER } from "./lib/config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = __dirname;
@@ -31,8 +33,8 @@ const WATCHLIST_PATH = join(dataDir, "watchlist.json");
 const CONTEXT_PATH = join(dataDir, "context-cache.json");
 const SETTINGS_PATH = join(dataDir, "user-settings.json");
 
-const DEFAULT_PORT = Number(process.env.PORT || 5173);
-const HOST = process.env.HOST || "127.0.0.1";
+const DEFAULT_PORT_OVERRIDE = Number(process.env.PORT || DEFAULT_PORT);
+const HOST = process.env.HOST || DEFAULT_HOST;
 
 // C4-12 (docs/audits/2026-08-30-audit-install-gestion/04-seguridad-installs.md, Low):
 // `HOST` era overridable sin guardia; con HOST=0.0.0.0 el control plane completo
@@ -60,6 +62,12 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "interest-cohort=()");
   res.setHeader(
     "Content-Security-Policy",
+    // Decision (audit 2026-09-05 LOW-01): `img-src https:` is required because
+    // catalog entries ship remote icons; the trade-off is that an upstream
+    // entry could load a remote tracking pixel. Accepted for a local control
+    // plane — icons are escaped (XSS-safe) and no credentials leave the app.
+    // `style-src 'unsafe-inline'` is required by the inline styles used across
+    // public/app.js; removing it means migrating to style classes first.
     "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; frame-ancestors 'none';"
   );
   next();
@@ -92,6 +100,10 @@ app.use((req, res, next) => {
 
 // JSON Body Parser with 1MB safety guard
 app.use(express.json({ limit: "1mb" }));
+
+// Response compression (gzip/brotli when accepted): the catalog payload is
+// ~169KB uncompressed; audit 2026-09-05 (perf) flagged its lack of compression.
+app.use(compression());
 
 // Static Assets Serving
 app.use(express.static(join(root, "public")));
@@ -166,7 +178,7 @@ function checkPortAvailable(port, host) {
   });
 }
 
-async function findAvailablePort(startPort, host, maxAttempts = 20) {
+async function findAvailablePort(startPort, host, maxAttempts = PORT_ATTEMPTS) {
   for (let i = 0; i < maxAttempts; i++) {
     const candidate = startPort + i;
     const isAvail = await checkPortAvailable(candidate, host);
@@ -176,9 +188,9 @@ async function findAvailablePort(startPort, host, maxAttempts = 20) {
 }
 
 export async function startServer() {
-  const port = await findAvailablePort(DEFAULT_PORT, EFFECTIVE_HOST);
+  const port = await findAvailablePort(DEFAULT_PORT_OVERRIDE, EFFECTIVE_HOST);
   if (!port) {
-    logger.error(`No available port found in range ${DEFAULT_PORT}–${DEFAULT_PORT + 20}`);
+    logger.error(`No available port found in range ${DEFAULT_PORT_OVERRIDE}–${DEFAULT_PORT_OVERRIDE + PORT_ATTEMPTS}`);
     process.exit(1);
   }
 
@@ -197,15 +209,59 @@ export async function startServer() {
       }
     );
     console.log("");
+    // Machine-readable handshake (lib/config.js READY_MARKER): the CLI launcher
+    // parses this line to learn the EFFECTIVE port, closing the TOCTOU gap
+    // between its pre-check and this bind (port-drift fix, audit 2026-09-05).
+    console.log(`${READY_MARKER} port=${port} host=${EFFECTIVE_HOST}`);
+  });
+
+  // Listen-time race: findAvailablePort pre-checks, but another process may
+  // bind the port in between. Fail loudly instead of an unhandled crash.
+  server.on("error", (err) => {
+    logger.error(`HTTP server listen error: ${err.message}`);
+    process.exit(1);
   });
 
   return { app, server, port };
 }
 
+/**
+ * Graceful shutdown: SIGINT/SIGTERM stop accepting new connections, drain
+ * keep-alive sockets, and exit 0. A hard timeout guards against sockets that
+ * never drain. Also converts unhandled rejections into visible errors
+ * (log-only: they must not tear down the control plane mid-operation).
+ * @param {import("node:http").Server} server
+ */
+export function installGracefulShutdown(server) {
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.warn(`Received ${signal}; draining connections...`);
+    server.close(() => {
+      logger.info("HTTP server closed cleanly.");
+      process.exit(0);
+    });
+    setTimeout(() => {
+      logger.warn("Graceful drain timed out (5s); forcing exit.");
+      process.exit(0);
+    }, 5000).unref();
+  };
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("unhandledRejection", (reason) => {
+    logger.error(`Unhandled rejection: ${reason instanceof Error ? reason.stack || reason.message : String(reason)}`);
+  });
+}
+
 // Direct invocation check
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  startServer().catch((err) => {
-    logger.error(`Failed to launch server: ${err.message}`);
-    process.exit(1);
-  });
+  startServer()
+    .then(({ server }) => {
+      installGracefulShutdown(server);
+    })
+    .catch((err) => {
+      logger.error(`Failed to launch server: ${err.message}`);
+      process.exit(1);
+    });
 }

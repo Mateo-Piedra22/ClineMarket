@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveCommand } from "../lib/resolver.js";
+import { DEFAULT_PORT, PORT_SCAN_END } from "../lib/config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -21,7 +22,7 @@ async function sleep(ms) {
 }
 
 async function findActiveServerUrl() {
-  for (let port = 5173; port <= 5195; port++) {
+  for (let port = DEFAULT_PORT; port <= PORT_SCAN_END; port++) {
     try {
       const res = await fetch(`http://127.0.0.1:${port}/api/status`, {
         signal: AbortSignal.timeout(500),
@@ -73,7 +74,7 @@ async function main() {
     env: {
       ...process.env,
       CLINEMARKET_DATA_DIR: smokeTmpDir,
-      PORT: process.env.PORT || "5173",
+      PORT: process.env.PORT || String(DEFAULT_PORT),
     },
     stdio: "ignore",
     windowsHide: true,
@@ -134,6 +135,21 @@ async function main() {
     assert.ok(Array.isArray(catalog.tags), "catalog.tags must be an array");
     assert.ok(Array.isArray(catalog.entries), "catalog.entries must be an array");
     console.log(`  catalog total: ${catalog.counts.total} (marketplace: ${catalog.counts.marketplace}, local: ${catalog.counts.local})`);
+
+    console.log("\\n==> Testing /api/search");
+    const searchRes = await getJson(`${BASE}/api/search?q=cline&limit=5`);
+    assert.strictEqual(searchRes.ok, true, "search.ok must be true");
+    assert.ok(Array.isArray(searchRes.results), "search.results must be an array");
+    assert.ok(searchRes.total >= searchRes.results.length, "search total >= returned");
+    if (searchRes.total > 0) {
+      const first = searchRes.results[0];
+      assert.ok(first.id && first.name && first.type, "search result must have id/name/type");
+    }
+    // Type filter.
+    const typeRes = await getJson(`${BASE}/api/search?type=skill&limit=100`);
+    assert.strictEqual(typeRes.ok, true);
+    assert.ok(typeRes.results.every((r) => r.type === "skill"), "type=skill must return only skills");
+    console.log(`  search total(all): ${searchRes.total}, sample results: ${searchRes.results.length}`);
 
     console.log("\n==> Testing /api/context");
     const context = await getJson(`${BASE}/api/context`);

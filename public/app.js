@@ -27,6 +27,49 @@ const state = {
   contextCwd: localStorage.getItem("clineMarketplace.contextCwd") || "",
 };
 
+// ---- UI state persistence (localStorage) -------------------------------------
+// Restores the active tab, filters and search across reloads so a developer
+// picks up where they left off. Namespaced under "clineMarketplace.ui".
+const UI_STORE_KEY = "clineMarketplace.ui";
+
+function loadUiState() {
+  try {
+    const raw = localStorage.getItem(UI_STORE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveUiState() {
+  try {
+    const tags = Array.from(state.filter.tags || []);
+    localStorage.setItem(UI_STORE_KEY, JSON.stringify({
+      activeTab: state.activeTab,
+      filter: { ...state.filter, tags },
+      showAllTags: state.showAllTags,
+      sortBy: state.filter.sortBy,
+    }));
+  } catch {
+    // storage full or unavailable — non-fatal, UI just won't persist.
+  }
+}
+
+(function hydrateUiState() {
+  const saved = loadUiState();
+  if (!saved) return;
+  if (saved.activeTab) state.activeTab = saved.activeTab;
+  if (saved.filter) {
+    state.filter = {
+      ...state.filter,
+      ...saved.filter,
+      tags: new Set(saved.filter.tags || []),
+    };
+  }
+  if (typeof saved.showAllTags === "boolean") state.showAllTags = saved.showAllTags;
+})();
+
 let lastActiveElement = null;
 
 // ---- API Helpers -----------------------------------------------------------
@@ -342,6 +385,7 @@ function filterByTag(tag) {
   switchTab("catalog");
   renderTagFilter();
   render();
+  saveUiState();
 }
 
 function filterBySearch(query) {
@@ -352,6 +396,7 @@ function filterBySearch(query) {
   updateSearchClearBtn();
   switchTab("catalog");
   render();
+  saveUiState();
 }
 
 // ---- Filtering & Sorting --------------------------------------------------
@@ -476,6 +521,7 @@ function resetAllFilters() {
 
   renderTagFilter();
   render();
+  saveUiState();
 }
 
 function updateSearchClearBtn() {
@@ -1571,6 +1617,7 @@ function switchTab(name) {
 
   toggleMobileSidebar(false);
   render();
+  saveUiState();
 }
 
 function toggleMobileSidebar(show) {
@@ -1592,6 +1639,7 @@ function wireFilters() {
     state.filter.search = e.target.value;
     updateSearchClearBtn();
     render();
+    saveUiState();
   });
 
   searchClear.addEventListener("click", () => {
@@ -1600,6 +1648,7 @@ function wireFilters() {
     updateSearchClearBtn();
     searchInp.focus();
     render();
+    saveUiState();
   });
 
   $("#typeFilter").addEventListener("click", (e) => {
@@ -1610,6 +1659,7 @@ function wireFilters() {
       b.classList.toggle("active", b === btn);
     }
     render();
+    saveUiState();
   });
 
   const bindCheck = (id, prop) => {
@@ -1618,6 +1668,7 @@ function wireFilters() {
     el.addEventListener("change", (e) => {
       state.filter[prop] = e.target.checked;
       render();
+      saveUiState();
     });
   };
 
@@ -1688,6 +1739,7 @@ function wireFilters() {
         if (el) el.checked = false;
       }
       render();
+      saveUiState();
       return;
     }
 
@@ -1696,6 +1748,7 @@ function wireFilters() {
       state.filter.tags.delete(clearTagTarget.dataset.clearTag);
       renderTagFilter();
       render();
+      saveUiState();
       return;
     }
   });
@@ -1823,7 +1876,7 @@ function wireTabs() {
     if (e.key === "Escape") {
       const helpOpen = !$("#helpModal").classList.contains("hidden");
       const detailOpen = !$("#detailModal").classList.contains("hidden");
-      const shutdownOpen = !$("#shutdownModal")?.classList.contains("hidden");
+      const shutdownOpen = $("#shutdownModal")?.classList.contains("hidden");
       const sidebarOpen = $("#sidebar").classList.contains("open");
 
       if (helpOpen) { closeHelp(); e.preventDefault(); return; }
@@ -1833,6 +1886,15 @@ function wireTabs() {
 
       if (state.bulkMode) {
         toggleBulkMode(false);
+        e.preventDefault();
+        return;
+      }
+
+      // Esc with active filters: clear everything (persisted via resetAllFilters).
+      if (state.filter.search || state.filter.tags.size || state.filter.type) {
+        resetAllFilters();
+        const s = $("#search"); if (s) s.value = "";
+        updateSearchClearBtn();
         e.preventDefault();
         return;
       }
@@ -1862,7 +1924,9 @@ function wireTabs() {
 
     if (e.key === "/") {
       e.preventDefault();
+      switchTab("catalog");
       $("#search")?.focus();
+      $("#search")?.select();
       return;
     }
     if (e.key === "b") {
@@ -2112,6 +2176,14 @@ window.openDetail = openDetail;
   wireFilters();
   wireTabs();
   wireActions();
+  // Installed version badge (topbar). Best-effort: fills #appVersion from
+  // /api/version; non-fatal on failure.
+  getJson("/api/version")
+    .then((v) => {
+      const el = document.getElementById("appVersion");
+      if (el && v?.version) { el.textContent = `v${v.version}`; el.title = `Cline Marketplace v${v.version}`; }
+    })
+    .catch(() => {});
   try {
     await reloadAll();
     checkUpdate();

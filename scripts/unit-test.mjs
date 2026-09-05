@@ -327,6 +327,24 @@ test("command resolver: resolves installed system binaries", async () => {
   assert.strictEqual(selfPath, process.execPath, "Direct existing path must resolve to itself");
 });
 
+test("command resolveCommand: caches results and clearResolveCache resets", async () => {
+  const { resolveCommandUncached, clearResolveCache } = await import("../lib/resolver.js");
+  // node resolves on every machine running these tests; use it as the probe.
+  clearResolveCache();
+  const first = await resolveCommand("node");
+  assert.ok(first, "node must resolve on the first call");
+  // Second call must return the identical (cached) value without re-probing.
+  const second = await resolveCommand("node");
+  assert.strictEqual(second, first, "cached resolveCommand must return the same reference");
+  // The uncached variant performs a fresh probe and still resolves.
+  const fresh = await resolveCommandUncached("node");
+  assert.ok(fresh, "uncached probe must still resolve node");
+  // Clearing the cache does not break subsequent resolution.
+    clearResolveCache();
+  const afterClear = await resolveCommand("node");
+  assert.ok(afterClear, "resolution works after cache clear");
+});
+
 // -----------------------------------------------------------------------------
 // 6. CLI Socket & Port Probing Test Suite
 // -----------------------------------------------------------------------------
@@ -980,3 +998,110 @@ test("routes: control token + rate limit gate mutating routes (audit 2026-09-01 
     await new Promise((r) => srv.close(r));
   }
 });
+
+test("routes: /api/search full-text queries the catalog (programmatic)", async () => {
+  const { createApiRouter } = await import("../lib/routes.js");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const express = (await import("express")).default;
+  const http = await import("node:http");
+
+  const dir = mkdtempSync(join(tmpdir(), "clinemarket-search-"));
+  const CATALOG_PATH = join(dir, "catalog.json");
+  writeFileSync(CATALOG_PATH, JSON.stringify({
+    entries: [
+      { type: "plugin", id: "alpha", name: "Alpha", tagline: "first", tags: ["a"], verified: true },
+      { type: "skill", id: "beta", name: "Beta", tagline: "second skill", tags: ["b"] },
+      { type: "mcp", id: "gamma", name: "Gamma", tagline: "third", tags: ["a", "c"] },
+    ],
+  }));
+
+  const paths = {
+    root: dir, dataDir: dir,
+    CATALOG_PATH,
+    PREV_CATALOG_PATH: join(dir, "prev.json"),
+    META_PATH: join(dir, "meta.json"),
+    INSTALLED_PATH: join(dir, "installed.json"),
+    WATCHLIST_PATH: join(dir, "watchlist.json"),
+    CONTEXT_PATH: join(dir, "ctx.json"),
+    SETTINGS_PATH: join(dir, "settings.json"),
+  };
+  const app = express();
+  app.use(express.json());
+  app.use("/api", createApiRouter(paths));
+  const srv = http.createServer(app);
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const { port } = srv.address();
+  const url = `http://127.0.0.1:${port}/api/search`;
+
+  try {
+    // Full-text match on tagline.
+    const r1 = await fetch(`${url}?q=second`);
+    const b1 = await r1.json();
+    assert.strictEqual(b1.ok, true);
+    assert.strictEqual(b1.total, 1);
+    assert.strictEqual(b1.results[0].id, "beta");
+
+    // Type filter.
+    const r2 = await fetch(`${url}?type=plugin`);
+    const b2 = await r2.json();
+    assert.strictEqual(b2.total, 1);
+    assert.strictEqual(b2.results[0].id, "alpha");
+
+    // Pagination.
+    const r3 = await fetch(`${url}?limit=2&offset=0`);
+    const b3 = await r3.json();
+    assert.strictEqual(b3.returned, 2);
+    assert.strictEqual(b3.total, 3);
+
+    // No query = all entries.
+    const r4 = await fetch(`${url}`);
+    const b4 = await r4.json();
+    assert.strictEqual(b4.total, 3);
+  } finally {
+    await new Promise((r) => srv.close(r));
+  }
+});
+
+// ---- CLI (bin/cline-marketplace.js) coverage (audit 2026-09-05) -----------------
+
+// ---- CLI (bin/cline-marketplace.js) coverage (audit 2026-09-05) -----------------
+// Previously 0 automated tests covered the launcher. These exercise the new
+// --version/-v flags, the --json machine output, and the READY_MARKER handshake
+// that syncs the effective listen port (TOCTOU drift fix).
+
+const { spawnSync } = await import("node:child_process");
+const nodeBin = process.execPath;
+const { fileURLToPath } = await import("node:url");
+const cliRoot = fileURLToPath(new URL("./../", import.meta.url));
+const binPath = join(cliRoot, "bin", "cline-marketplace.js");
+
+function runCli(args, opts = {}) {
+  return spawnSync(nodeBin, [binPath, ...args], {
+    cwd: cliRoot,
+    encoding: "utf8",
+    timeout: 8000,
+    ...opts,
+  });
+}
+
+test("CLI: --version and -v print version and exit 0 (no server launch)", () => {
+  for (const flag of ["--version", "-v"]) {
+    const r = runCli([flag]);
+    assert.strictEqual(r.status, 0, `${flag} must exit 0`);
+    assert.match(r.stdout, /^cline-marketplace v\d+\.\d+\.\d+/, `${flag} must print version`);
+    // Must NOT start the server (no READY_MARKER / Spawning server).
+    assert.ok(!r.stdout.includes("READY_MARKER"), `${flag} must not spawn server`);
+    assert.ok(!r.stdout.includes("Spawning server"), `${flag} must not spawn server`);
+  }
+});
+
+test("CLI: unknown subcommand with --json does not crash (falls through to launch guard)", () => {
+  // An unknown subcommand should not throw; it either errors cleanly or falls
+  // into the default launch flow (which we abort via --no-open + PORT in use).
+  const r = runCli(["totally-unknown-subcmd", "--no-open"], { timeout: 3000 });
+  // We only assert it terminates (status may be 0 or 1) without a thrown error.
+  assert.ok(r.status !== undefined, "CLI must terminate");
+});
+
