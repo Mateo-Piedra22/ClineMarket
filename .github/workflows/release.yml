@@ -58,7 +58,7 @@ jobs:
                    `**Full Changelog**: https://github.com/${context.repo.owner}/${context.repo.repo}/commits/${tag}`;
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag_info.outputs.tag }}
           name: "Cline Marketplace ${{ steps.tag_info.outputs.tag }}"
